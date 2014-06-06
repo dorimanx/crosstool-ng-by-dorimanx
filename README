@@ -1,0 +1,84 @@
+This is the README for crosstool-NG
+
+Crosstool-NG follows the autoconf dance. So, to get you
+kick-started, just run:
+    ./configure --help
+
+
+Dorimanx Note:
+=====================================================================================
+To start you will need to build the tool for your machine!
+
+./bootstrap
+./configure --enable-local
+make
+
+then you will have the tool READY and configured for building
+
+Linaro 14.04 GCC 4.8.3 for LG with ARM and Cortex-a15 CPU neon-vfpv4 hard
+
+the LG set is just a NAME, you can set what ever you need. also the cortex set. 
+
+any way, all can be changed using the config menu
+
+./ct-ng menuconfig
+
+Tool will download all you need! you must have internel connection!
+
+to build do this:
+
+logon to SSH as USER!!! not ROOT! just simple user!
+
+./ct-ng build.32 (thread number = cores x2) is have 16 cores :)
+
+
+NOW WAIT!!!! :)
+
+My build finish after 25~30MIN without downloading! when rebuilding!
+
+first time build will include downloading about 700~1000MB
+
+so amy take time, just grab some coffee and relax :)
+
+if you want tool to USE new linaro tool chain source, you will need to add it in config folder
+
+vi config/cc/gcc.in
+
+change the:
+prompt "linaro-4.8-2014.04" to prompt "linaro-4.8-2014.05"
+
+then the:
+default "linaro-4.8-2014.04" if CC_V_linaro_4_8 to default "linaro-4.8-2014.05" if CC_V_linaro_4_8
+
+and when you build again, tool will download the source if it's exist in linaro launch pad page.
+
+https://launchpad.net/gcc-linaro
+
+have fun and thank me later :)
+
+======================================================================================
+
+
+If you are using a development snapshot, you'll have to
+create the configure script, first. Just run:
+    ./bootstrap
+
+You will find the documentation in the directory 'docs'.
+Here is a quick overview of what you'll find there:
+  0 - Table of content
+  1 - Introduction
+  2 - Installing crosstool-NG
+  3 - Configuring a toolchain
+  4 - Building the toolchain
+  5 - Using the toolchain
+  6 - Toolchain types
+  7 - Contributing
+  8 - Internals
+  A - Credits
+  B - Known issues
+  C - Misc. tutorials
+
+You can also point your browser at:
+  http://crosstool-ng.org/
+
+Aloha!
