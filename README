@@ -8,14 +8,23 @@ kick-started, just run:
 Dorimanx Note:
 =====================================================================================
 To start you will need to build the tool for your machine!
+and to have all needed packages installed!
+
+Ubuntu Linux 64BIT 10.x -> 12.04 or higher
+
+sudo apt-get install mercurial mercurial-common flex bison gperf ncurses-dev texinfo gcc g++ \
+autoconf automake libtool gawk patch autotools-dev libsigsegv2 libmpfr-dev libgmp-dev \
+libltdl-dev libgmpxx4ldbl libmpc-dev expat libexpat1-dev libpython3.3 libpython3.3-stdlib \
+libssl-dev libssl-dev zlib1g-dev subversion
 
 ./bootstrap
 ./configure --enable-local
 make
 
-then you will have the tool READY and configured for building
 
-Linaro 14.04 GCC 4.8.3 for LG with ARM and Cortex-a15 CPU neon-vfpv4 hard
+Then you will have the tool READY and configured for building
+
+Linaro 14.05 GCC 4.9.1 for LG with ARM and Cortex-a15 CPU neon-vfpv4 hard
 
 the LG set is just a NAME, you can set what ever you need. also the cortex set. 
 

@@ -36,6 +36,12 @@ choice
 # Don't remove next line
 # CT_INSERT_VERSION_BELOW
 
+config CC_V_linaro_4_9
+    bool
+    prompt "linaro-4.9-2014.05"
+    depends on CC_GCC_SHOW_LINARO
+    select CC_GCC_4_9
+
 config CC_V_linaro_4_8
     bool
     prompt "linaro-4.8-2014.04"
@@ -337,6 +343,19 @@ config CC_GCC_4_7_or_later
     bool
     select CC_GCC_4_6_or_later
 
+config CC_GCC_4_9
+    bool
+    select CC_GCC_4_8_or_later
+    select CC_GCC_USE_GMP_MPFR
+    select CC_GCC_USE_MPC
+    select CC_GCC_HAS_GRAPHITE
+    select CC_GCC_HAS_LTO
+    select CC_GCC_HAS_PKGVERSION_BUGURL
+    select CC_GCC_HAS_BUILD_ID
+    select CC_GCC_HAS_LNK_HASH_STYLE
+    select CC_GCC_HAS_LIBQUADMATH
+    select CC_SUPPORT_GOLANG
+
 config CC_GCC_4_8
     bool
     select CC_GCC_4_8_or_later
@@ -449,6 +468,7 @@ config CC_VERSION
     string
 # Don't remove next line
 # CT_INSERT_VERSION_STRING_BELOW
+    default "linaro-4.9-2014.05" if CC_V_linaro_4_9
     default "linaro-4.8-2014.04" if CC_V_linaro_4_8
     default "4.8.2" if CC_V_4_8_2
     default "4.8.1" if CC_V_4_8_1
