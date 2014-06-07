@@ -36,7 +36,10 @@ Tool will download all you need! you must have internel connection!
 
 to build do this:
 
-logon to SSH as USER!!! not ROOT! just simple user!
+as ROOT chown -R YOUR-USER.YOUR-USER /BLABLABLA/crosstool-ng-by-dorimanx/
+the user should be NOT ROOT!
+
+logon to SSH as YOUR-USER!!! not ROOT! just simple user!
 
 ./ct-ng build.32 (thread number = cores x2) is have 16 cores :)
 
