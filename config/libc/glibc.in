@@ -2,17 +2,25 @@
 
 ## depends on ! WINDOWS && ! BARE_METAL && ARCH_USE_MMU
 ##
-## select LIBC_SUPPORT_NPTL
+## select LIBC_SUPPORT_THREADS_NATIVE
 ## select CC_CORE_PASSES_NEEDED
 ##
 ## help The de-facto standard for Linux distributions.
 ## help Feature-rich, but large...  Most usefull for desktop-like systems.
+
+config THREADS
+    default "nptl"
 
 choice
     bool
     prompt "glibc version"
 # Don't remove next line
 # CT_INSERT_VERSION_BELOW
+
+config LIBC_GLIBC_V_2_20
+    bool
+    prompt "2.20"
+    select LIBC_GLIBC_2_20_or_later
 
 config LIBC_GLIBC_V_2_19
     bool
@@ -87,12 +95,38 @@ config LIBC_GLIBC_V_2_8
     prompt "2.8"
     select LIBC_GLIBC_PORTS_EXTERNAL
 
+config LIBC_GLIBC_CUSTOM
+    bool
+    prompt "Custom glibc"
+    depends on EXPERIMENTAL
+    select LIBC_CUSTOM
+    select LIBC_GLIBC_2_20_or_later
+
 endchoice
+
+config LIBC_GLIBC_2_20_or_later
+    bool
+
+config LIBC_CUSTOM
+    bool
+
+if LIBC_GLIBC_CUSTOM
+
+config LIBC_GLIBC_CUSTOM_LOCATION
+    string
+    prompt "Full path to custom glibc source"
+    default ""
+    help
+      Enter the path to the directory (or tarball) of your source for glibc,
+      or leave blank to use default CT_CUSTOM_LOCATION_ROOT_DIR/glibc
+
+endif # LIBC_GLIBC_CUSTOM
 
 config LIBC_VERSION
     string
 # Don't remove next line
 # CT_INSERT_VERSION_STRING_BELOW
+    default "2.20" if LIBC_GLIBC_V_2_20
     default "2.19" if LIBC_GLIBC_V_2_19
     default "2.18" if LIBC_GLIBC_V_2_18
     default "2.17" if LIBC_GLIBC_V_2_17
@@ -108,3 +142,4 @@ config LIBC_VERSION
     default "2.10.1" if LIBC_GLIBC_V_2_10_1
     default "2.9" if LIBC_GLIBC_V_2_9
     default "2.8" if LIBC_GLIBC_V_2_8
+    default "custom" if LIBC_GLIBC_CUSTOM

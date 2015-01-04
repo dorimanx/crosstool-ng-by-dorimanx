@@ -2,7 +2,7 @@
 
 ## depends on ! WINDOWS && ! BARE_METAL && ARCH_USE_MMU
 ##
-## select LIBC_SUPPORT_NPTL
+## select LIBC_SUPPORT_THREADS_NATIVE
 ## select CC_CORE_PASSES_NEEDED
 ##
 ## help EGLIBC (Embedded GLIBC) is a variant of the standard GNU GLIBC
@@ -12,15 +12,18 @@
 ## help cross-compilation support.  EGLIBC also includes some embedded ports
 ## help (such as e500/spe) that are normally separate add-ons of GLIBC.
 
+config THREADS
+    default "nptl"
+
 choice
     bool
     prompt "eglibc version"
 # Don't remove next line
 # CT_INSERT_VERSION_BELOW
 
-config LIBC_EGLIBC_LINARO_V_2_19_2014_08
+config LIBC_EGLIBC_V_2_19
     bool
-    prompt "Linaro 2.19-2014.08"
+    prompt "linaro-2.19-2014.08"
     select LIBC_EGLIBC_2_16_or_later
 
 config LIBC_EGLIBC_V_2_18
@@ -81,13 +84,20 @@ config LIBC_EGLIBC_V_TRUNK
     help
       Selecting this will export the trunk of the eglibc subversion repository.
 
+config LIBC_EGLIBC_CUSTOM
+    bool
+    prompt "Custom eglibc"
+    depends on EXPERIMENTAL
+    select LIBC_EGLIBC_2_16_or_later
+    select LIBC_CUSTOM
+
 endchoice
 
 config LIBC_VERSION
     string
 # Don't remove next line
 # CT_INSERT_VERSION_STRING_BELOW
-    default "linaro-2.19-2014.08" if LIBC_EGLIBC_LINARO_V_2_19_2014_08
+    default "linaro-2.19-2014.08" if LIBC_EGLIBC_V_2_19
     default "2_18" if LIBC_EGLIBC_V_2_18
     default "2_17" if LIBC_EGLIBC_V_2_17
     default "2_16" if LIBC_EGLIBC_V_2_16
@@ -99,9 +109,26 @@ config LIBC_VERSION
     default "2_10" if LIBC_EGLIBC_V_2_10
     default "2_9" if LIBC_EGLIBC_V_2_9
     default "trunk" if LIBC_EGLIBC_V_TRUNK
+    default "custom" if LIBC_EGLIBC_CUSTOM
 
 config LIBC_EGLIBC_2_16_or_later
     bool
+
+config LIBC_CUSTOM
+    bool
+
+if LIBC_EGLIBC_CUSTOM
+
+config LIBC_EGLIBC_CUSTOM_LOCATION
+    string
+    prompt "Full path to custom eglibc source"
+    default ""
+    help
+      Enter the path to the directory (or tarball) of your source for eglibc,
+      or leave blank to use default CT_CUSTOM_LOCATION_ROOT_DIR/eglibc
+
+endif # LIBC_EGLIBC_CUSTOM
+if ! LIBC_EGLIBC_CUSTOM
 
 if CONFIGURE_has_svn
 
@@ -152,6 +179,7 @@ comment "|  - or have a LAN mirror with a pre-downloaded tarball"
 comment "otherwise you won't be able to download eglibc"
 
 endif # ! CONFIGURE_has_svn
+endif # ! LIBC_EGLIBC_CUSTOM
 
 config EGLIBC_OPT_SIZE
     bool

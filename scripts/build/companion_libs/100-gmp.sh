@@ -12,7 +12,9 @@ if [ "${CT_GMP}" = "y" ]; then
 
 # Download GMP
 do_gmp_get() {
-    CT_GetFile "gmp-${CT_GMP_VERSION}" {ftp,http}://{ftp.sunet.se/pub,ftp.gnu.org}/gnu/gmp
+    CT_GetFile "gmp-${CT_GMP_VERSION}"         \
+        https://gmplib.org/download/gmp        \
+        {http,ftp,https}://ftp.gnu.org/gnu/gmp
 }
 
 # Extract GMP
@@ -74,12 +76,17 @@ do_gmp_backend() {
     local cflags
     local ldflags
     local arg
+    local -a extra_config
 
     for arg in "$@"; do
         eval "${arg// /\\ }"
     done
 
     CT_DoLog EXTRA "Configuring GMP"
+
+    if [ ! "${CT_GMP_5_0_2_or_later}" = "y" ]; then
+        extra_config+=("--enable-mpbsd")
+    fi
 
     CT_DoExecLog CFG                                \
     CFLAGS="${cflags} -fexceptions"                 \
@@ -89,10 +96,10 @@ do_gmp_backend() {
         --host=${host}                              \
         --prefix="${prefix}"                        \
         --enable-fft                                \
-        --enable-mpbsd                              \
         --enable-cxx                                \
         --disable-shared                            \
-        --enable-static
+        --enable-static                             \
+        "${extra_config}"
 
     CT_DoLog EXTRA "Building GMP"
     CT_DoExecLog ALL make ${JOBSFLAGS}

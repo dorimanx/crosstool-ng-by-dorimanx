@@ -1,7 +1,7 @@
 # Menu for the cross GDB
 
-#config STATIC_TOOLCHAIN
-#    select GDB_CROSS_STATIC if GDB_CROSS
+config STATIC_TOOLCHAIN
+    select GDB_CROSS_STATIC if GDB_CROSS
 
 config GDB_CROSS
     bool
@@ -35,6 +35,7 @@ config GDB_CROSS_SIM
 config GDB_CROSS_PYTHON
     bool
     prompt "Enable python scripting"
+    depends on GDB_HAS_PYTHON
     depends on ! GDB_CROSS_STATIC
     default y
     help

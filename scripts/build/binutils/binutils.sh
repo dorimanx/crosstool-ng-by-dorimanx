@@ -9,8 +9,8 @@ do_binutils_get() {
                      "${CT_BINUTILS_CUSTOM_LOCATION}"
     else
         CT_GetFile "binutils-${CT_BINUTILS_VERSION}"                                        \
-                   {ftp,http}://{ftp.gnu.org/gnu,ftp.kernel.org/pub/linux/devel}/binutils   \
-                   ftp://gcc.gnu.org/pub/binutils/{releases,snapshots}
+                   ftp://{sourceware.org,gcc.gnu.org}/pub/binutils/{releases,snapshots}     \
+                   {ftp,http}://{ftp.gnu.org/gnu,ftp.kernel.org/pub/linux/devel}/binutils
     fi
 
     if [ -n "${CT_ARCH_BINFMT_FLAT}" ]; then
@@ -220,7 +220,7 @@ do_binutils_backend() {
         "${CT_BINUTILS_EXTRA_CONFIG_ARRAY[@]}"
 
     if [ "${static_build}" = "y" ]; then
-        extra_make_flags+=("LDFLAGS=-static -all-static")
+        extra_make_flags+=("LDFLAGS=-all-static")
         CT_DoLog EXTRA "Prepare binutils for static build"
         CT_DoExecLog ALL make ${JOBSFLAGS} configure-host
     fi
@@ -291,6 +291,7 @@ do_elf2flt_backend() {
     CT_DoExecLog CFG                                            \
     CFLAGS="${cflags}"                                          \
     LDFLAGS="${ldflags}"                                        \
+    LIBS="-ldl"                                                 \
     "${CT_SRC_DIR}/elf2flt-${CT_ELF2FLT_VERSION}/configure"     \
         --build=${CT_BUILD}                                     \
         --host=${host}                                          \
