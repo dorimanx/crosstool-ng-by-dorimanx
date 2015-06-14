@@ -80,9 +80,9 @@ addToolVersion() {
     # to try adding a new version if the one he/she wants is not listed.
     # But it can be the case where the version is hidden behind either one
     # of EXPERIMENTAL or OBSOLETE, so warn if the version is already listed.
-    if grep -E "^config ${config_ver_option}$" "${file}" >/dev/null 2>&1; then
+    if ${grep} -E "^config ${config_ver_option}$" "${file}" >/dev/null 2>&1; then
         echo "'${tool}': version '${version}' already present:"
-        grep -A1 -B0 -n                                                     \
+        ${grep} -A1 -B0 -n                                                     \
              -E "^(config ${config_ver_option}| {4}prompt \"${version}\")$" \
              "${file}" /dev/null
         return 0
@@ -175,7 +175,7 @@ fi
 while [ $# -gt 0 ]; do
     case "$1" in
         # Tools:
-        --gcc)      EXP=; OBS=; cat=CC;             tool=gcc;       tool_prefix=cc;             dot2suffix=;;
+        --gcc)      EXP=; OBS=; cat=CC_GCC;         tool=gcc;       tool_prefix=cc;             dot2suffix=;;
         --binutils) EXP=; OBS=; cat=BINUTILS;       tool=binutils;  tool_prefix=binutils;       dot2suffix=;;
         --glibc)    EXP=; OBS=; cat=LIBC_GLIBC;     tool=glibc;     tool_prefix=libc;           dot2suffix=;;
         --uClibc)   EXP=; OBS=; cat=LIBC_UCLIBC;    tool=uClibc;    tool_prefix=libc;           dot2suffix=;;

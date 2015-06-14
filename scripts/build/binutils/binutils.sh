@@ -227,7 +227,7 @@ do_binutils_backend() {
         "${CT_BINUTILS_EXTRA_CONFIG_ARRAY[@]}"
 
     if [ "${static_build}" = "y" ]; then
-        extra_make_flags+=("LDFLAGS=-all-static")
+        extra_make_flags+=("LDFLAGS=-static")
         CT_DoLog EXTRA "Prepare binutils for static build"
         CT_DoExecLog ALL make ${JOBSFLAGS} configure-host
     fi

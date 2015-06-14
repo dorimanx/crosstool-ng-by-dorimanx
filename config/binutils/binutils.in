@@ -2,7 +2,7 @@
 
 comment "GNU binutils"
 
-config BINUTILS_SHOW_LINARO
+config CC_BINUTILS_SHOW_LINARO
     bool
     prompt "Show Linaro versions"
     help
@@ -30,6 +30,7 @@ config BINUTILS_LINARO_V_2_25
     prompt "linaro-2.25.0-2015.01-2"
     depends on BINUTILS_SHOW_LINARO
     select BINUTILS_2_25_or_later
+    depends on CC_BINUTILS_SHOW_LINARO
 
 config BINUTILS_V_2_25
     bool
@@ -41,6 +42,7 @@ config BINUTILS_LINARO_V_2_24
     prompt "linaro-2.24.0-2014.11-2"
     depends on BINUTILS_SHOW_LINARO
     select BINUTILS_2_24_or_later
+    depends on CC_BINUTILS_SHOW_LINARO
 
 config BINUTILS_V_2_24
     bool
