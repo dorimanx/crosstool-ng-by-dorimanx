@@ -37,17 +37,38 @@ config CC_GCC_EXTRA_CONFIG_ARRAY
       if they are properly quoted (or escaped, but prefer quotes). Eg.:
           --with-foo="1st arg with 4 spaces" --with-bar=2nd-arg-without-space
 
+config CC_GCC_EXTRA_ENV_ARRAY
+    string
+    prompt "Extra env variables to set for make"
+    default ""
+    help
+      Used to add specific env variables on the make command line for the
+      gcc build (eg. INHIBIT_LIBC_CFLAGS='-DUSE_TM_CLONE_REGISTRY=0')
+
+      Leave blank if you don't know better.
+
+config CC_GCC_TARGET_FINAL
+    bool
+    prompt "Use the default targets all and install for the final compiler"
+    default n
+    depends on BARE_METAL
+    help
+      The final GCC for a bare metal system is built by the core gcc script.
+      This script does a lot of tricks to build the core gcc, which are not
+      required for the final gcc build. If you set this flag to true, all the
+      tricks are not done and the compiler is build with all/install.
+
 config STATIC_TOOLCHAIN
-    select CC_GCC_STATIC_LIBSTDCXX if CC_GCC_4_4_or_later
+    bool
+    select CC_GCC_STATIC_LIBSTDCXX
 
 config CC_GCC_STATIC_LIBSTDCXX
     bool
     prompt "Link libstdc++ statically into the gcc binary"
     default y
-    depends on CC_GCC_4_4_or_later
     select WANTS_STATIC_LINK
     help
-      Newer gcc versions use the PPL library which is C++ code.  Statically
+      Newer gcc versions require some c++ libraries. So statically
       linking libstdc++ increases the likeliness that the gcc binary will
       run on machines other than the one which it was built on, without
       having to worry about distributing the matching version of libstdc++
@@ -116,12 +137,15 @@ config CC_GCC_LIBMUDFLAP
 config CC_GCC_LIBGOMP
     bool
     prompt "Compile libgomp"
+    depends on !THREADS_NONE
     help
       libgomp is "the GNU implementation of the OpenMP Application Programming
       Interface (API) for multi-platform shared-memory parallel programming in
       C/C++ and Fortran". See:
         http://gcc.gnu.org/onlinedocs/libgomp/
-      
+
+      GNU OpenMP support requires threading.
+
       The default is 'N'. Say 'Y' if you need it, and report success/failure.
 
 config CC_GCC_LIBSSP
@@ -165,7 +189,7 @@ config CC_CXA_ATEXIT
     bool
     prompt "Use __cxa_atexit"
     default y
-    depends on ! BARE_METAL
+    depends on ! BARE_METAL || LIBC_PROVIDES_CXA_ATEXIT
     help
       If you get the missing symbol "__cxa_atexit" when building C++ programs,
       you might want to try disabling this option.
@@ -208,7 +232,6 @@ config CC_GCC_LDBL_128
     tristate
     prompt "Enable 128-bit long doubles"
     default m
-    depends on CC_GCC_4_2_or_later
     help
       Saying 'Y' will force gcc to use 128-bit wide long doubles
       Saying 'N' will force gcc to use 64-bit wide long doubles
