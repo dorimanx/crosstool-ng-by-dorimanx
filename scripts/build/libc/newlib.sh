@@ -38,10 +38,6 @@ do_libc_extract() {
     fi
 }
 
-do_libc_check_config() {
-    :
-}
-
 do_libc_start_files() {
     CT_DoStep INFO "Installing C library headers & start files"
     CT_DoExecLog ALL cp -a "${CT_SRC_DIR}/newlib-${CT_LIBC_VERSION}/newlib/libc/include/." \
@@ -64,6 +60,11 @@ do_libc() {
     cd "${CT_BUILD_DIR}/build-libc"
 
     CT_DoLog EXTRA "Configuring C library"
+
+    # Multilib is the default, so if it is not enabled, disable it.
+    if [ "${CT_MULTILIB}" != "y" ]; then
+        extra_config+=("--disable-multilib")
+    fi
 
     if [ "${CT_LIBC_NEWLIB_IO_C99FMT}" = "y" ]; then
         newlib_opts+=( "--enable-newlib-io-c99-formats" )
@@ -90,6 +91,12 @@ do_libc() {
         newlib_opts+=( "--disable-newlib-supplied-syscalls" )
     else
         newlib_opts+=( "--enable-newlib-supplied-syscalls" )
+    fi
+    if [ "${CT_LIBC_NEWLIB_NANO_MALLOC}" = "y" ]; then
+        newlib_opts+=( "--enable-newlib-nano-malloc" )
+    fi
+    if [ "${CT_LIBC_NEWLIB_NANO_FORMATTED_IO}" = "y" ]; then
+        newlib_opts+=( "--enable-newlib-nano-formatted-io" )
     fi
 
     [ "${CT_LIBC_NEWLIB_ENABLE_TARGET_OPTSPACE}" = "y" ] && newlib_opts+=("--enable-target-optspace")

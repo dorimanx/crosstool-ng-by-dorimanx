@@ -1,6 +1,7 @@
 # musl options
 
 ## depends on ! WINDOWS && ! BARE_METAL
+## depends on EXPERIMENTAL
 ##
 ## select LIBC_SUPPORT_THREADS_NATIVE
 ## select CC_CORE_PASSES_NEEDED
@@ -54,7 +55,7 @@ choice
 
 config LIBC_MUSL_V_1_1
     bool
-    prompt "1.1.14 (Mainline)"
+    prompt "1.1.15 (Mainline)"
     depends on EXPERIMENTAL
 
 endchoice
@@ -63,6 +64,6 @@ config LIBC_VERSION
     string
 # Don't remove next line
 # CT_INSERT_VERSION_STRING_BELOW
-    default "1.1.14" if LIBC_MUSL_V_1_1
+    default "1.1.15" if LIBC_MUSL_V_1_1
 
 endif # ! LIBC_MUSL_CUSTOM
