@@ -2,6 +2,11 @@
 
 if ARCH_BINFMT_FLAT
 
+config ELF2FLT_REQUIRES
+    def_bool y
+    select ZLIB
+    select BINUTILS_FORCE_LD_BFD_ONLY
+
 comment "elf2flt"
 
 choice
@@ -11,13 +16,14 @@ choice
 config ELF2FLT_GIT
     bool
     prompt "git"
+    depends on CONFIGURE_has_git
     help
       Grab the latest version of elf2flt from the CVS repository
 
 config ELF2FLT_CUSTOM
     bool
     prompt "Custom elf2flt"
-    depends on EXPERIMENTAL
+    depends on EXPERIMENTAL || !CONFIGURE_has_git
     help
       The choosen elf2flt version shall be not downloaded. Instead use
       a custom location to get the source.
@@ -29,7 +35,7 @@ if ELF2FLT_GIT
 config ELF2FLT_GIT_CSET
     string
     prompt "git cset"
-    default "9dbc458c6122c495bbdec8dc975a15c9d39e5ff2"
+    default "4820f0dbb77cd6564d5fa0817218fe2a1fb99f32"
     help
       Enter the git changeset to use.
 

@@ -6,7 +6,8 @@ all: conf mconf nconf
 	@true   # Just be silent, you fscking son of a fscking beach...
 
 # Build flags
-CFLAGS = -DCONFIG_=\"CT_\" -DPACKAGE="\"crosstool-NG $(VERSION)\""
+CFLAGS = -DCONFIG_=\"CT_\" -DPACKAGE="\"crosstool-NG $(VERSION)\"" \
+	 -DGPERF_LEN_TYPE="$(gperf_len_type)"
 LDFLAGS = $(INTL_LIBS)
 
 # Compiler flags to use gettext
@@ -64,7 +65,7 @@ DEPS += $(nconf_DEP)
 # Build the dependency for C files
 %.dep: %.c
 	@echo "  DEP    '$@'"
-	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -MM $< |$(sed) -r -e 's|([^:]+.o)( *:+)|$(<:.c=.o) $@\2|;' >$@
+	@$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -MM $< |$(sed_r) -e 's|([^:]+.o)( *:+)|$(<:.c=.o) $@\2|;' >$@
 
 # Generate the grammar parser
 zconf.tab.o: zconf.tab.c zconf.hash.c zconf.lex.c

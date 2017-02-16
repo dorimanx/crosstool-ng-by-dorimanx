@@ -1,4 +1,3 @@
-#!@@CT_bash@@
 # Copyright 2007 Yann E. MORIN
 # Licensed under the GPL v2. See COPYING in the root of this package.
 
@@ -17,13 +16,13 @@
 # most notably:
 #  - set trap handler on errors,
 #  - don't hash commands lookups,
-#  - initialise logging.
 . "${CT_LIB_DIR}/scripts/functions"
 
-# Parse the configuration file
-# It has some info about the logging facility, so include it early
-. .config.2
-# Yes! We can do full logging from now on!
+# Read the sample settings
+CT_LoadConfig
+
+# Yes! We can do full logging from now on! Clean any old log file content.
+CT_LogEnable clean=yes
 
 # Check running as root
 if [ -z "${CT_ALLOW_BUILD_AS_ROOT_SURE}" ]; then
@@ -42,7 +41,7 @@ if [ "${CT_DEBUG_INTERACTIVE}" = "y" -a ! \( -t 0 -a -t 6 -a -t 2 \) ]; then
 fi
 
 # Override the locale early, in case we ever translate crosstool-NG messages
-if [ -z "${CT_NO_OVERIDE_LC_MESSAGES}" ]; then
+if [ -z "${CT_NO_OVERRIDE_LC_MESSAGES}" ]; then
     export LC_ALL=C
     export LANG=C
 fi
@@ -104,19 +103,28 @@ CT_TestOrAbort "The CONFIG_SHELL '${CT_CONFIG_SHELL}' is not valid" -f "${CT_CON
 # Contains symlinks to the tools found by ./configure
 # Note: CT_DoLog and CT_DoExecLog do not use any of those tool, so
 # they can be safely used
-CT_TOOLS_OVERIDE_DIR="${CT_WORK_DIR}/tools"
-CT_DoLog DEBUG "Creating bin-override for tools in '${CT_TOOLS_OVERIDE_DIR}'"
-CT_DoExecLog DEBUG mkdir -p "${CT_TOOLS_OVERIDE_DIR}/bin"
+CT_TOOLS_OVERRIDE_DIR="${CT_WORK_DIR}/tools"
+CT_DoLog DEBUG "Creating bin-override for tools in '${CT_TOOLS_OVERRIDE_DIR}'"
+CT_DoExecLog DEBUG mkdir -p "${CT_TOOLS_OVERRIDE_DIR}/bin"
 cat "${CT_LIB_DIR}/paths.sh" |while read trash line; do
     tool="${line%%=*}"
-    path="${line#*=}"
-    CT_DoLog DEBUG "Creating script-override for '${tool}' -> '${path}'"
-    # Note: we need to supress the " in the path because
-    # there can be arguments in there (thanks autostuff...)
-    printf "#${BANG}${CT_CONFIG_SHELL}\nexec ${path//\"/} \"\${@}\"\n" >"${CT_TOOLS_OVERIDE_DIR}/bin/${tool}"
-    CT_DoExecLog ALL chmod 700 "${CT_TOOLS_OVERIDE_DIR}/bin/${tool}"
+    # Suppress extra quoting
+    eval path=${line#*=}
+    if [ -r "${CT_LIB_DIR}/scripts/override/$tool" ]; then
+       tmpl="${CT_LIB_DIR}/scripts/override/$tool"
+    else
+       tmpl="${CT_LIB_DIR}/scripts/override/__default"
+    fi
+    CT_DoLog DEBUG "Creating script-override for '${tool}' -> '${path}' using '${tmpl}' template"
+    CT_DoExecLog ALL cp "${tmpl}" "${CT_TOOLS_OVERRIDE_DIR}/bin/${tool}"
+    CT_DoExecLog ALL ${sed_r} -i \
+              -e "s#@CONFIG_SHELL@#${CT_CONFIG_SHELL}#g" \
+              -e "s#@TOOL_PATH@#${path}#g" \
+              -e "s#@TOOLS_OVERRIDE_DIR@#${CT_TOOLS_OVERRIDE_DIR}#g" \
+              "${CT_TOOLS_OVERRIDE_DIR}/bin/${tool}"
+    CT_DoExecLog ALL chmod 700 "${CT_TOOLS_OVERRIDE_DIR}/bin/${tool}"
 done
-export PATH="${CT_TOOLS_OVERIDE_DIR}/bin:${PATH}"
+export PATH="${CT_TOOLS_OVERRIDE_DIR}/bin:${PATH}"
 
 # Start date. Can't be done until we know the locale
 # Also requires the bin-override tools
@@ -126,8 +134,6 @@ CT_STAR_DATE_HUMAN=$(CT_DoDate +%Y%m%d.%H%M%S)
 # Log real begining of build, now
 CT_DoLog INFO "Build started ${CT_STAR_DATE_HUMAN}"
 
-# We really need to extract from ,config and not .config.2, as we
-# do want the kconfig's values, not our mangled config with arrays.
 CT_DoStep DEBUG "Dumping user-supplied crosstool-NG configuration"
 CT_DoExecLog DEBUG ${grep} -E '^(# )?CT_' .config
 CT_EndStep
@@ -138,31 +144,11 @@ export MAKEFLAGS
 
 CT_DoLog INFO "Building environment variables"
 
-# Include sub-scripts instead of calling them: that way, we do not have to
-# export any variable, nor re-parse the configuration and functions files.
-. "${CT_LIB_DIR}/scripts/build/internals.sh"
-. "${CT_LIB_DIR}/scripts/build/arch.sh"
-. "${CT_LIB_DIR}/scripts/build/companion_tools.sh"
-. "${CT_LIB_DIR}/scripts/build/kernel/${CT_KERNEL}.sh"
-. "${CT_LIB_DIR}/scripts/build/companion_libs.sh"
-. "${CT_LIB_DIR}/scripts/build/binutils/${CT_BINUTILS}.sh"
-. "${CT_LIB_DIR}/scripts/build/libc/${CT_LIBC}.sh"
-. "${CT_LIB_DIR}/scripts/build/cc.sh"
-. "${CT_LIB_DIR}/scripts/build/debug.sh"
-. "${CT_LIB_DIR}/scripts/build/test_suite.sh"
-
-# Target tuple: CT_TARGET needs a little love:
-CT_DoBuildTargetTuple
-
-# Kludge: If any of the configured options needs CT_TARGET,
-# then rescan the options file now:
-. .config.2
-
 # Sanity check some directories
 CT_TestAndAbort "'CT_PREFIX_DIR' is not set: where should I install?" -z "${CT_PREFIX_DIR}"
 
 # Avoid multiple '/' in the prefix dir, it breaks relocatability
-CT_PREFIX_DIR="$( "${sed}" -r -e 's:/+:/:g; s:/*$::;' <<<"${CT_PREFIX_DIR}" )"
+CT_PREFIX_DIR="$( ${sed_r} -e 's:/+:/:g; s:/*$::;' <<<"${CT_PREFIX_DIR}" )"
 
 # Second kludge: merge user-supplied target CFLAGS with architecture-provided
 # target CFLAGS. Do the same for LDFLAGS in case it happens in the future.
@@ -178,24 +164,35 @@ CT_PKGVERSION="crosstool-NG ${CT_VERSION}${CT_TOOLCHAIN_PKGVERSION:+ - ${CT_TOOL
 # Compute the working directories names
 CT_TARBALLS_DIR="${CT_WORK_DIR}/tarballs"
 CT_SRC_DIR="${CT_WORK_DIR}/src"
-CT_BUILD_DIR="${CT_WORK_DIR}/${CT_TARGET}/build"
-CT_BUILDTOOLS_PREFIX_DIR="${CT_WORK_DIR}/${CT_TARGET}/buildtools"
+CT_BUILD_DIR="${CT_BUILD_TOP_DIR}/build"
+CT_BUILDTOOLS_PREFIX_DIR="${CT_BUILD_TOP_DIR}/buildtools"
 CT_STATE_DIR="${CT_WORK_DIR}/${CT_TARGET}/state"
 # Note about HOST_COMPLIBS_DIR: it's always gonna be in the buildtools dir, or a
 # sub-dir. So we won't have to save/restore it, not even create it.
 # In case of cross or native, host-complibs are used for build-complibs;
 # in case of canadian or cross-native, host-complibs are specific
+# Note about BUILD_COMPTOOLS_DIR: if installing companion tools for "host" in
+# a native or simple cross, we can can use the same binaries we built for
+# "build". However, we need companion tools for "build" early - as other
+# components may depend on them - so we may skip building for "host" rather
+# than for "build" in that case.
 case "${CT_TOOLCHAIN_TYPE}" in
     native|cross)
         CT_HOST_COMPLIBS_DIR="${CT_BUILDTOOLS_PREFIX_DIR}"
+        if [ -n "${CT_COMP_TOOLS_FOR_HOST}" ]; then
+            CT_BUILD_COMPTOOLS_DIR="${CT_PREFIX_DIR}"
+        else
+            CT_BUILD_COMPTOOLS_DIR="${CT_BUILDTOOLS_PREFIX_DIR}"
+        fi
         ;;
     canadian|cross-native)
         CT_HOST_COMPLIBS_DIR="${CT_BUILDTOOLS_PREFIX_DIR}/complibs-host"
+        CT_BUILD_COMPTOOLS_DIR="${CT_BUILDTOOLS_PREFIX_DIR}"
         ;;
 esac
 
 # Compute test suite install directory
-CT_TEST_SUITE_DIR=${CT_INSTALL_DIR}/test-suite
+CT_TEST_SUITE_DIR=${CT_PREFIX_DIR}/test-suite
 
 # We must ensure that we can restart if asked for!
 if [ -n "${CT_RESTART}" -a ! -d "${CT_STATE_DIR}"  ]; then
@@ -215,8 +212,8 @@ if [    "${CT_SAVE_TARBALLS}" = "y"     \
 fi
 
 # Check now if we can write to the destination directory:
-if [ -d "${CT_INSTALL_DIR}" ]; then
-    CT_TestAndAbort "Destination directory '${CT_INSTALL_DIR}' is not removable" ! -w $(dirname "${CT_INSTALL_DIR}")
+if [ -d "${CT_PREFIX_DIR}" ]; then
+    CT_TestAndAbort "Destination directory '${CT_PREFIX_DIR}' is not removable" ! -w $(dirname "${CT_PREFIX_DIR}")
 fi
 
 # Good, now grab a bit of informations on the system we're being run on,
@@ -249,8 +246,8 @@ if [ -z "${CT_RESTART}" ]; then
     if [ "${CT_FORCE_EXTRACT}" = "y" -a -d "${CT_SRC_DIR}" ]; then
         CT_DoForceRmdir "${CT_SRC_DIR}"
     fi
-    if [ -d "${CT_INSTALL_DIR}" -a "${CT_RM_RF_PREFIX_DIR}" = "y" ]; then
-        CT_DoForceRmdir "${CT_INSTALL_DIR}"
+    if [ -d "${CT_PREFIX_DIR}" -a "${CT_RM_RF_PREFIX_DIR}" = "y" ]; then
+        CT_DoForceRmdir "${CT_PREFIX_DIR}"
     fi
     # In case we start anew, get rid of the previously saved state directory
     if [ -d "${CT_STATE_DIR}" ]; then
@@ -265,7 +262,6 @@ CT_DoExecLog ALL mkdir -p "${CT_TARBALLS_DIR}"
 CT_DoExecLog ALL mkdir -p "${CT_SRC_DIR}"
 CT_DoExecLog ALL mkdir -p "${CT_BUILD_DIR}"
 CT_DoExecLog ALL mkdir -p "${CT_BUILDTOOLS_PREFIX_DIR}/bin"
-CT_DoExecLog ALL mkdir -p "${CT_INSTALL_DIR}"
 CT_DoExecLog ALL mkdir -p "${CT_PREFIX_DIR}"
 CT_DoExecLog ALL mkdir -p "${CT_HOST_COMPLIBS_DIR}"
 
@@ -277,9 +273,9 @@ CT_DoExecLog DEBUG touch "${CT_PREFIX_DIR}/foo"
 CT_TestAndAbort "Your file system in '${CT_PREFIX_DIR}' is *not* case-sensitive!" -f "${CT_PREFIX_DIR}/FOO"
 CT_DoExecLog DEBUG rm -f "${CT_PREFIX_DIR}/foo"
 
-# Kludge: CT_INSTALL_DIR and CT_PREFIX_DIR might have grown read-only if
+# Kludge: CT_PREFIX_DIR might have grown read-only if
 # the previous build was successful.
-CT_DoExecLog ALL chmod -R u+w "${CT_INSTALL_DIR}" "${CT_PREFIX_DIR}"
+CT_DoExecLog ALL chmod -R u+w "${CT_PREFIX_DIR}"
 
 # Setting up the rest of the environment only if not restarting
 if [ -z "${CT_RESTART}" ]; then
@@ -300,7 +296,6 @@ if [ -z "${CT_RESTART}" ]; then
         BINUTILS_SYSROOT_ARG="--with-sysroot=${CT_SYSROOT_DIR}"
         CC_CORE_SYSROOT_ARG="--with-sysroot=${CT_SYSROOT_DIR}"
         CC_SYSROOT_ARG="--with-sysroot=${CT_SYSROOT_DIR}"
-        LIBC_SYSROOT_ARG=""
         # glibc's prefix must be exactly /usr, else --with-sysroot'd gcc will get
         # confused when $sysroot/usr/include is not present.
         # Note: --prefix=/usr is magic!
@@ -319,7 +314,6 @@ if [ -z "${CT_RESTART}" ]; then
         # building libgcc, and you'll have no profiling
         CC_CORE_SYSROOT_ARG="--without-headers"
         CC_SYSROOT_ARG="--with-headers=${CT_HEADERS_DIR}"
-        LIBC_SYSROOT_ARG="prefix="
     fi
     CT_DoExecLog ALL mkdir -p "${CT_SYSROOT_DIR}"
     CT_DoExecLog ALL mkdir -p "${CT_DEBUGROOT_DIR}"
@@ -459,30 +453,68 @@ if [ -z "${CT_RESTART}" ]; then
     #  - fall back to searching user's PATH
     # Of course, neither cross-native nor canadian can run on BUILD,
     # so don't add those PATHs in this case...
+    # For native and simple cross, build==host, combine the extra CFLAGS/LDFLAGS
+    # supplied for both (so that it doesn't matter where the user supplied them).
     case "${CT_TOOLCHAIN_TYPE}" in
-        cross)  export PATH="${CT_PREFIX_DIR}/bin:${CT_BUILDTOOLS_PREFIX_DIR}/bin:${PATH}";;
-        canadian) export PATH="${CT_BUILDTOOLS_PREFIX_DIR}/bin:${PATH}";;
-        *)  ;;
+        cross|native)
+            export PATH="${CT_PREFIX_DIR}/bin:${CT_BUILDTOOLS_PREFIX_DIR}/bin:${PATH}"
+            bh_cflags="${CT_EXTRA_CFLAGS_FOR_BUILD} ${CT_EXTRA_CFLAGS_FOR_HOST}"
+            bh_ldflags="${CT_EXTRA_LDFLAGS_FOR_BUILD} ${CT_EXTRA_LDFLAGS_FOR_HOST}"
+            CT_EXTRA_CFLAGS_FOR_BUILD="${bh_cflags}"
+            CT_EXTRA_CFLAGS_FOR_HOST="${bh_cflags}"
+            CT_EXTRA_LDFLAGS_FOR_BUILD="${bh_ldflags}"
+            CT_EXTRA_LDFLAGS_FOR_HOST="${bh_ldflags}"
+            ;;
+        canadian|cross-native)
+            export PATH="${CT_BUILDTOOLS_PREFIX_DIR}/bin:${PATH}"
+            # build!=host in this case
+            ;;
+        *)
+            ;;
     esac
 
     # Help build gcc
     # Explicitly optimise, else the lines below will overide the
     # package's default optimisation flags
-    CT_CFLAGS_FOR_BUILD="-O2 -g"
+    CT_CFLAGS_FOR_BUILD="-O2 -g -I${CT_BUILDTOOLS_PREFIX_DIR}/include"
     CT_CFLAGS_FOR_BUILD+=" ${CT_EXTRA_CFLAGS_FOR_BUILD}"
-    CT_LDFLAGS_FOR_BUILD=
+    CT_LDFLAGS_FOR_BUILD="-L${CT_BUILDTOOLS_PREFIX_DIR}/lib"
     CT_LDFLAGS_FOR_BUILD+=" ${CT_EXTRA_LDFLAGS_FOR_BUILD}"
+
+    case "${CT_BUILD}" in
+        *darwin*)
+            # Two issues while building on MacOS. Really, we should be checking for
+            # clang instead.
+            # - gettext static library fails to link unless CoreFoundation framework
+            #   is included
+            # - ranlib on MacOS does not include common symbols into the symbol index
+            #   for a static library, and hence linker fails to pull in the right
+            #   archive members; hence, avoid common symbols. Alternative is to
+            #   have ranlib wrapper in buildtools/bin supply -c option.
+            CT_CFLAGS_FOR_BUILD+=" -fno-common"
+            CT_LDFLAGS_FOR_BUILD+=" -framework CoreFoundation"
+            ;;
+    esac
+
+    CT_DoLog DEBUG "CFLAGS for build compiler: '${CT_CFLAGS_FOR_BUILD}'"
+    CT_DoLog DEBUG "LDFLAGS for build compiler: '${CT_LDFLAGS_FOR_BUILD}'"
 
     # Help host gcc
     # Explicitly optimise, else the lines below will overide the
     # package's default optimisation flags
     CT_CFLAGS_FOR_HOST="-O2 -g"
     [ "${CT_USE_PIPES}" = "y" ] && CT_CFLAGS_FOR_HOST+=" -pipe"
-    CT_CFLAGS_FOR_HOST+=" ${CT_EXTRA_CFLAGS_FOR_HOST}"
-    CT_LDFLAGS_FOR_HOST=
-    CT_LDFLAGS_FOR_HOST+=" ${CT_EXTRA_LDFLAGS_FOR_HOST}"
     CT_CFLAGS_FOR_HOST+=" -I${CT_HOST_COMPLIBS_DIR}/include"
-    CT_LDFLAGS_FOR_HOST+=" -L${CT_HOST_COMPLIBS_DIR}/lib"
+    CT_CFLAGS_FOR_HOST+=" ${CT_EXTRA_CFLAGS_FOR_HOST}"
+    CT_LDFLAGS_FOR_HOST="-L${CT_HOST_COMPLIBS_DIR}/lib"
+    CT_LDFLAGS_FOR_HOST+=" ${CT_EXTRA_LDFLAGS_FOR_HOST}"
+    case "${CT_HOST}" in
+        *darwin*)
+            # Same as above, for host
+            CT_CFLAGS_FOR_HOST+=" -fno-common"
+            CT_LDFLAGS_FOR_HOST+=" -framework CoreFoundation"
+            ;;
+    esac
     CT_DoLog DEBUG "CFLAGS for host compiler: '${CT_CFLAGS_FOR_HOST}'"
     CT_DoLog DEBUG "LDFLAGS for host compiler: '${CT_LDFLAGS_FOR_HOST}'"
 
@@ -543,8 +575,6 @@ if [ -z "${CT_RESTART}" ]; then
     fi
     rm -f "${testc}"
 
-    # We need to save the real .config with kconfig's value,
-    # not our mangled .config.2 with arrays.
     CT_DoLog EXTRA "Installing user-supplied crosstool-NG configuration"
     CT_DoExecLog ALL mkdir -p "${CT_PREFIX_DIR}/bin"
     CT_DoExecLog DEBUG ${install} -m 0755 "${CT_LIB_DIR}/scripts/toolchain-config.in" "${CT_PREFIX_DIR}/bin/${CT_TARGET}-ct-ng.config"
@@ -580,14 +610,8 @@ if [ -z "${CT_RESTART}" ]; then
             CT_DoExecLog ALL mkdir -p "${CT_SRC_DIR}"
         fi
 
-        if [ "${CT_COMP_TOOLS}" = "y" ]; then
-          CT_DoStep INFO "Extracting, patching and installing companion tools"
-          do_companion_tools_extract
-          do_companion_tools
-          CT_EndStep
-        fi
-
         CT_DoStep INFO "Extracting and patching toolchain components"
+        do_companion_tools_extract
         do_kernel_extract
         do_companion_libs_extract
         do_binutils_extract
@@ -649,18 +673,18 @@ CT_DoEnd INFO
 
 # From now-on, it can become impossible to log any time, because
 # either we're compressing the log file, or it can become RO any
-# moment... Restore original stdout, stderr and stdin
+# moment...
 CT_DoLog INFO "Finishing installation (may take a few seconds)..."
-exec >&6 2>&7 <&8
+CT_LogDisable
 rm -f ${CT_PREFIX_DIR}/build.log.bz2
 if [ "${CT_LOG_TO_FILE}" = "y" ]; then
-    cp "${tmp_log_file}" "${CT_PREFIX_DIR}/build.log"
+    cp "${CT_BUILD_LOG}" "${CT_PREFIX_DIR}/build.log"
     if [ "${CT_LOG_FILE_COMPRESS}" = y ]; then
         bzip2 -9 "${CT_PREFIX_DIR}/build.log"
     fi
 fi
-if [ "${CT_INSTALL_DIR_RO}" = "y" ]; then
-    chmod -R a-w "${CT_INSTALL_DIR}"
+if [ "${CT_PREFIX_DIR_RO}" = "y" ]; then
+    chmod -R a-w "${CT_PREFIX_DIR}"
 fi
 # CT_TEST_SUITE_DIR may not exist if only downloading or extracting
 if [ "${CT_TEST_SUITE}" = "y" -a -d "${CT_TEST_SUITE_DIR}" ]; then

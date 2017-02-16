@@ -110,6 +110,7 @@ do_libc_backend_once() {
     CT_DoExecLog CFG                                      \
     CFLAGS="${extra_cflags[*]}"                           \
     CROSS_COMPILE="${CT_TARGET}-"                         \
+    ${CONFIG_SHELL}                                       \
     ${src_dir}/configure                                  \
         --host="${multi_target}"                          \
         --target="${multi_target}"                        \
@@ -120,13 +121,13 @@ do_libc_backend_once() {
 
     if [ "${libc_mode}" = "startfiles" ]; then
         CT_DoLog EXTRA "Installing C library headers"
-        CT_DoExecLog ALL ${make} DESTDIR="${multi_root}" install-headers
+        CT_DoExecLog ALL make DESTDIR="${multi_root}" install-headers
         CT_DoLog EXTRA "Building C library start files"
-        CT_DoExecLog ALL ${make} DESTDIR="${multi_root}" \
+        CT_DoExecLog ALL make DESTDIR="${multi_root}" \
             obj/crt/crt1.o obj/crt/crti.o obj/crt/crtn.o
         CT_DoLog EXTRA "Installing C library start files"
         CT_DoExecLog ALL cp -av obj/crt/crt*.o "${multi_root}${multilib_dir}"
-        CT_DoExecLog ALL ${CT_TARGET}-gcc -nostdlib \
+        CT_DoExecLog ALL ${CT_TARGET}-${CT_CC} -nostdlib \
             -nostartfiles -shared -x c /dev/null -o "${multi_root}${multilib_dir}/libc.so"
     fi
     if [ "${libc_mode}" = "final" ]; then
@@ -137,10 +138,10 @@ do_libc_backend_once() {
             "${multi_root}${multilib_dir}/libc.so"
 
         CT_DoLog EXTRA "Building C library"
-        CT_DoExecLog ALL ${make} ${JOBSFLAGS}
+        CT_DoExecLog ALL make ${JOBSFLAGS}
 
         CT_DoLog EXTRA "Installing C library"
-        CT_DoExecLog ALL ${make} DESTDIR="${multi_root}" install
+        CT_DoExecLog ALL make DESTDIR="${multi_root}" install
 
         # Convert /lib/ld-* symlinks to relative paths so that they are valid
         # both on the host and on the target.
@@ -153,6 +154,9 @@ do_libc_backend_once() {
                     ;;
             esac
         done
+
+        # Any additional actions for this architecture
+        CT_DoArchMUSLPostInstall
     fi
 
     CT_EndStep

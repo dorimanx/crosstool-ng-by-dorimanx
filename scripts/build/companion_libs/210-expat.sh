@@ -31,7 +31,6 @@ do_expat_for_host() {
     expat_opts+=( "prefix=${CT_HOST_COMPLIBS_DIR}" )
     expat_opts+=( "cflags=${CT_CFLAGS_FOR_HOST}" )
     expat_opts+=( "ldflags=${CT_LDFLAGS_FOR_HOST}" )
-    expat_opts+=( "static_build=${CT_STATIC_TOOLCHAIN}" )
 
     do_expat_backend "${expat_opts[@]}"
 
@@ -43,14 +42,23 @@ fi
 if [ "${CT_EXPAT_TARGET}" = "y" ]; then
 do_expat_for_target() {
     local -a expat_opts
+    local prefix
 
     CT_DoStep INFO "Installing expat for target"
     CT_mkdir_pushd "${CT_BUILD_DIR}/build-expat-target-${CT_TARGET}"
 
     expat_opts+=( "host=${CT_TARGET}" )
-    expat_opts+=( "prefix=/usr" )
+    case "${CT_TARGET}" in
+        *-*-mingw*)
+            prefix="/mingw"
+            ;;
+        *)
+            prefix="/usr"
+            ;;
+    esac
+    expat_opts+=( "prefix=${prefix}" )
     expat_opts+=( "destdir=${CT_SYSROOT_DIR}" )
-    expat_opts+=( "static_build=y" )
+    expat_opts+=( "shared=${CT_SHARED_LIBS}" )
 
     do_expat_backend "${expat_opts[@]}"
 
@@ -69,6 +77,7 @@ do_expat_backend() {
     local prefix
     local cflags
     local ldflags
+    local shared
     local arg
     local -a extra_config
 
@@ -76,9 +85,8 @@ do_expat_backend() {
         eval "${arg// /\\ }"
     done
 
-    if [ "${static_build}" = "y" ]; then
+    if [ "${shared}" != "y" ]; then
         extra_config+=("--disable-shared")
-        extra_config+=("--enable-static")
     fi
 
     CT_DoLog EXTRA "Configuring expat"
@@ -86,16 +94,18 @@ do_expat_backend() {
     CT_DoExecLog CFG                                                \
     CFLAGS="${cflags}"                                              \
     LDFLAGS="${ldflags}"                                            \
+    ${CONFIG_SHELL}                                                 \
     "${CT_SRC_DIR}/expat-${CT_EXPAT_VERSION}/configure"             \
         --build=${CT_BUILD}                                         \
         --host=${host}                                              \
         --prefix="${prefix}"                                        \
+        --enable-static                                             \
         "${extra_config[@]}"
 
     CT_DoLog EXTRA "Building expat"
-    CT_DoExecLog ALL ${make} ${JOBSFLAGS}
+    CT_DoExecLog ALL make ${JOBSFLAGS}
     CT_DoLog EXTRA "Installing expat"
-    CT_DoExecLog ALL ${make} install INSTALL_ROOT="${destdir}"
+    CT_DoExecLog ALL make install INSTALL_ROOT="${destdir}"
 }
 
 fi

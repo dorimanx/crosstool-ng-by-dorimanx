@@ -23,7 +23,7 @@ CT_DoArchUClibcSelectArch() {
     local cfg="${1}"
     local arch="${2}"
 
-    ${sed} -i -r -e '/^TARGET_.*/d' "${cfg}"
+    sed_r -i -e '/^TARGET_.*/d' "${cfg}"
     CT_KconfigEnableOption "TARGET_${arch}" "${cfg}"
     CT_KconfigSetOption "TARGET_ARCH" "${arch}" "${cfg}"
 }
@@ -61,6 +61,11 @@ CT_DoArchUClibcHeaderDir() {
 # Usage: CT_DoArchMUSLHeaderDir <path-variable> <cflags>
 CT_DoArchMUSLHeaderDir() {
     # Only needed if a given architecture may select different MUSL architectures.
+    :;
+}
+
+# MUSL: Perform any final adjustments on the installed libc/headers
+CT_DoArchMUSLPostInstall() {
     :;
 }
 

@@ -35,11 +35,16 @@ choice
     prompt "uClibc Version Name"
 
 config LIBC_UCLIBC_CUSTOM_UCLIBC
-    bool "uClibc"
+    bool "uClibc (OBSOLETE)"
+    depends on OBSOLETE
     select LIBC_UCLIBC_0_9_33_2_or_later
 
 config LIBC_UCLIBC_CUSTOM_UCLIBC_NG
-    bool "uClibc-ng"
+    bool "uClibc-ng (1.0.15 or later)"
+    select LIBC_UCLIBC_NG_1_0_15_or_later
+
+config LIBC_UCLIBC_CUSTOM_UCLIBC_NG_OLD
+    bool "uClibc-ng (older than 1.0.15)"
     select LIBC_UCLIBC_NG_1_0_0_or_later
 
 endchoice
@@ -60,6 +65,8 @@ config LIBC_UCLIBC_CUSTOM_VERSION
     prompt "Custom uClibc Version"
     help
       Enter the version number for your custom uClibc.
+      Version 1.0.18 is only enabled in EXPERIMENTAL builds due to issues
+      with static libraries.
 
 config LIBC_VERSION
     string
@@ -75,14 +82,27 @@ choice
 # Don't remove next line
 # CT_INSERT_VERSION_BELOW
 
-config LIBC_UCLIBC_NG_V_1_0_12
+config LIBC_UCLIBC_NG_V_1_0_22
     bool
-    prompt "1.0.12"
-    select LIBC_UCLIBC_NG_1_0_12_or_later
+    prompt "1.0.22"
+    select LIBC_UCLIBC_NG_1_0_15_or_later
+
+config LIBC_UCLIBC_NG_V_1_0_21
+    bool
+    prompt "1.0.21 (OBSOLETE)"
+    depends on OBSOLETE
+    select LIBC_UCLIBC_NG_1_0_15_or_later
+
+config LIBC_UCLIBC_NG_V_1_0_20
+    bool
+    prompt "1.0.20 (OBSOLETE)"
+    depends on OBSOLETE
+    select LIBC_UCLIBC_NG_1_0_15_or_later
 
 config LIBC_UCLIBC_V_0_9_33_2
     bool
-    prompt "0.9.33.2"
+    prompt "0.9.33.2 (OBSOLETE)"
+    depends on OBSOLETE
     select LIBC_UCLIBC_0_9_33_2_or_later
 
 endchoice
@@ -91,12 +111,14 @@ config LIBC_VERSION
     string
 # Don't remove next line
 # CT_INSERT_VERSION_STRING_BELOW
-    default "1.0.12" if LIBC_UCLIBC_NG_V_1_0_12
+    default "1.0.22" if LIBC_UCLIBC_NG_V_1_0_22
+    default "1.0.21" if LIBC_UCLIBC_NG_V_1_0_21
+    default "1.0.20" if LIBC_UCLIBC_NG_V_1_0_20
     default "0.9.33.2" if LIBC_UCLIBC_V_0_9_33_2
 
 endif # ! LIBC_UCLIBC_CUSTOM
 
-config LIBC_UCLIBC_NG_1_0_12_or_later
+config LIBC_UCLIBC_NG_1_0_15_or_later
     bool
     select LIBC_UCLIBC_NG_1_0_0_or_later
 

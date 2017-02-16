@@ -57,11 +57,14 @@ export docdir          := @docdir@@subdocdir@
 export mandir          := @mandir@
 export datarootdir     := @datarootdir@
 export install         := @INSTALL@
-export bash            := @_BASH@
-export awk             := @_AWK@
+export bash            := @BASH_SHELL@
+export awk             := @AWK@
 export grep            := @GREP@
 export make            := @MAKE@
 export sed             := @SED@
+export sed_r           := @SED_R@
+export wget            := @wget@
+export curl            := @curl@
 export libtool         := @LIBTOOL@
 export libtoolize      := @LIBTOOLIZE@
 export objcopy         := @OBJCOPY@
@@ -69,6 +72,7 @@ export objdump         := @OBJDUMP@
 export readelf         := @READELF@
 export patch           := @PATCH@
 export gperf           := @GPERF@
+export gperf_len_type  := @GPERF_LEN_TYPE@
 export CC              := @CC@
 export CPP             := @CPP@
 export CPPFLAGS        := @CPPFLAGS@
@@ -154,9 +158,10 @@ uninstall: real-uninstall
 # Build rules
 
 build-bin: $(PROG_NAME)             \
+           scripts/scripts.mk       \
            scripts/crosstool-NG.sh  \
            scripts/saveSample.sh    \
-           scripts/showTuple.sh
+           scripts/showConfig.sh
 	@chmod 755 $^
 
 build-lib: config/configure.in  \
@@ -176,7 +181,7 @@ docs/$(PROG_NAME).1.gz: docs/$(PROG_NAME).1
 
 define sed_it
 	@echo "  SED    '$@'"
-	@$(sed) -r -e 's,@@CT_BINDIR@@,$(bindir),g;'        \
+	@$(sed_r)  -e 's,@@CT_BINDIR@@,$(bindir),g;'        \
 	           -e 's,@@CT_LIBDIR@@,$(libdir),g;'        \
 	           -e 's,@@CT_DOCDIR@@,$(docdir),g;'        \
 	           -e 's,@@CT_MANDIR@@,$(mandir),g;'        \
@@ -186,6 +191,8 @@ define sed_it
 	           -e 's,@@CT_make@@,$(make),g;'            \
 	           -e 's,@@CT_bash@@,$(bash),g;'            \
 	           -e 's,@@CT_awk@@,$(awk),g;'              \
+	           -e 's,@@CT_wget@@,$(wget),g;'            \
+	           -e 's,@@CT_curl@@,$(curl),g;'            \
 	           $< >$@
 endef
 
@@ -208,6 +215,7 @@ paths.mk: FORCE
 	  echo 'export grep=$(grep)';               \
 	  echo 'export make=$(make)';               \
 	  echo 'export sed=$(sed)';                 \
+	  echo 'export sed_r=$(sed_r)';             \
 	  echo 'export libtool=$(libtool)';         \
 	  echo 'export libtoolize=$(libtoolize)';   \
 	  echo 'export objcopy=$(objcopy)';         \
@@ -225,6 +233,7 @@ paths.sh: FORCE
 	  echo 'export grep="$(grep)"';             \
 	  echo 'export make="$(make)"';             \
 	  echo 'export sed="$(sed)"';               \
+	  echo 'export sed_r="$(sed_r)"';           \
 	  echo 'export libtool="$(libtool)"';       \
 	  echo 'export libtoolize="$(libtoolize)"'; \
 	  echo 'export objcopy="$(objcopy)"';       \
@@ -257,12 +266,14 @@ FORCE:
 clean-bin:
 	@echo "  RM     '$(PROG_NAME)'"
 	@rm -f $(PROG_NAME)
+	@echo "  RM     'scripts/scripts.mk'"
+	@rm -f scripts/scripts.mk
 	@echo "  RM     'scripts/crosstool-NG.sh'"
 	@rm -f scripts/crosstool-NG.sh
 	@echo "  RM     'scripts/saveSample.sh'"
 	@rm -f scripts/saveSample.sh
-	@echo "  RM     'scripts/showTuple.sh'"
-	@rm -f scripts/showTuple.sh
+	@echo "  RM     'scripts/showConfig.sh'"
+	@rm -f scripts/showConfig.sh
 
 clean-lib:
 	@echo "  RM     'paths'"

@@ -71,6 +71,17 @@ do_kernel_extract() {
         return 0
     fi
     CT_Patch "linux" "${CT_KERNEL_VERSION}"
+
+    # Disable building relocs application - it needs <linux/types.h>
+    # on the host, which may not be present on Cygwin or MacOS; it
+    # needs <elf.h>, which again is not present on MacOS; and most
+    # important, we don't need it to install the headers.
+    # This is not done as a patch, since it varies from Linux version
+    # to version - patching each particular Linux version would be
+    # too cumbersome.
+    CT_Pushd "${CT_SRC_DIR}/linux-${CT_KERNEL_VERSION}"
+    sed_r -i 's/(\$\(MAKE\) .* relocs)$/:/' arch/*/Makefile
+    CT_Popd
 }
 
 # Install kernel headers using headers_install from kernel sources.
@@ -93,7 +104,7 @@ do_kernel_headers() {
 
     CT_DoLog EXTRA "Installing kernel headers"
     CT_DoExecLog ALL                                    \
-    ${make} -C "${kernel_path}"                         \
+    make -C "${kernel_path}"                         \
          CROSS_COMPILE="${CT_TARGET}-"                  \
          O="${CT_BUILD_DIR}/build-kernel-headers"       \
          ARCH=${kernel_arch}                            \
@@ -104,7 +115,7 @@ do_kernel_headers() {
     if [ "${CT_KERNEL_LINUX_INSTALL_CHECK}" = "y" ]; then
         CT_DoLog EXTRA "Checking installed headers"
         CT_DoExecLog ALL                                    \
-        ${make} -C "${kernel_path}"                         \
+        make -C "${kernel_path}"                         \
              CROSS_COMPILE="${CT_TARGET}-"                  \
              O="${CT_BUILD_DIR}/build-kernel-headers"       \
              ARCH=${kernel_arch}                            \

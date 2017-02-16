@@ -48,6 +48,7 @@ do_libc_start_files() {
 
     do_set_mingw_install_prefix
     CT_DoExecLog CFG        \
+    ${CONFIG_SHELL} \
     "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-headers/configure" \
         --build=${CT_BUILD} \
         --host=${CT_TARGET} \
@@ -55,10 +56,10 @@ do_libc_start_files() {
         "${sdk_opts[@]}"
 
     CT_DoLog EXTRA "Compile Headers"
-    CT_DoExecLog ALL ${make}
+    CT_DoExecLog ALL make
 
     CT_DoLog EXTRA "Installing Headers"
-    CT_DoExecLog ALL ${make} install DESTDIR=${CT_SYSROOT_DIR}
+    CT_DoExecLog ALL make install DESTDIR=${CT_SYSROOT_DIR}
 
     CT_Popd
 
@@ -83,6 +84,32 @@ do_check_mingw_vendor_tuple()
     fi
 }
 
+do_mingw_tools() {
+    for f in gendef genidl genlib genpeimg widl
+    do
+        if [[ ! -d "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-tools/${f}" ]]; then
+            continue;
+        fi
+
+        CT_mkdir_pushd "${CT_BUILD_DIR}/build-mingw-w64-tools/${f}"
+
+        CT_DoExecLog CFG        \
+            ${CONFIG_SHELL} \
+            "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-tools/${f}/configure" \
+            --build=${CT_BUILD} \
+            --host=${CT_HOST} \
+            --target=${CT_TARGET} \
+            --program-prefix=${CT_TARGET}- \
+            --prefix="${CT_PREFIX_DIR}"
+
+        CT_DoExecLog ALL ${make} ${JOBSFLAGS}
+
+        CT_DoExecLog ALL ${make} install
+
+        CT_Popd
+    done
+}
+
 do_libc() {
     do_check_mingw_vendor_tuple
 
@@ -94,6 +121,7 @@ do_libc() {
 
     do_set_mingw_install_prefix
     CT_DoExecLog CFG                                                                  \
+    ${CONFIG_SHELL}                                                                   \
     "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-crt/configure" \
         --with-sysroot=${CT_SYSROOT_DIR}                                              \
         --prefix=${MINGW_INSTALL_PREFIX}                                              \
@@ -104,14 +132,47 @@ do_libc() {
     # parallel build. See https://github.com/crosstool-ng/crosstool-ng/issues/246
     # Do not pass ${JOBSFLAGS} - build serially.
     CT_DoLog EXTRA "Building mingw-w64-crt"
-    CT_DoExecLog ALL ${make}
+    CT_DoExecLog ALL make
 
     CT_DoLog EXTRA "Installing mingw-w64-crt"
-    CT_DoExecLog ALL ${make} install DESTDIR=${CT_SYSROOT_DIR}
+    CT_DoExecLog ALL make install DESTDIR=${CT_SYSROOT_DIR}
+
+    if [[ ${CT_MINGW_TOOLS} == "y" ]]; then
+        CT_DoLog EXTRA "Installing mingw-w64 companion tools"
+        do_mingw_tools
+    fi
 
     CT_EndStep
+
+    if [ "${CT_THREADS}" = "posix" ]; then
+	    do_pthreads
+    fi
 }
 
 do_libc_post_cc() {
     :
+}
+
+do_pthreads() {
+    CT_DoStep INFO "Building mingw-w64-winpthreads files"
+
+    CT_DoLog EXTRA "Configuring mingw-w64-winpthreads"
+
+    CT_mkdir_pushd "${CT_BUILD_DIR}/build-mingw-w64-winpthreads"
+
+    CT_DoExecLog CFG                                                        \
+    ${CONFIG_SHELL}                                                                   \
+    "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-libraries/winpthreads/configure" \
+        --with-sysroot=${CT_SYSROOT_DIR}                                              \
+        --prefix=${MINGW_INSTALL_PREFIX}                                              \
+        --build=${CT_BUILD}                                                           \
+        --host=${CT_TARGET}                                                           \
+
+    CT_DoLog EXTRA "Building mingw-w64-winpthreads"
+    CT_DoExecLog ALL make ${JOBSFLAGS}
+
+    CT_DoLog EXTRA "Installing mingw-w64-winpthreads"
+    CT_DoExecLog ALL make install DESTDIR=${CT_SYSROOT_DIR}
+
+    CT_EndStep
 }

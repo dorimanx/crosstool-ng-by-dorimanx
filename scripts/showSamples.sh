@@ -116,7 +116,6 @@ dump_single_sample() {
             printf  "    %-*s : %s (threads: %s)\n" ${width} "C library" "${libc_name}${libc_ver:+-}${libc_ver}" "${CT_THREADS}"
             printf  "    %-*s :" ${width} "Tools"
             [ "${CT_TOOL_sstrip}"   ] && printf " sstrip"
-            [ "${CT_DEBUG_dmalloc}" ] && printf " dmalloc-${CT_DMALLOC_VERSION}"
             [ "${CT_DEBUG_duma}"    ] && printf " duma-${CT_DUMA_VERSION}"
             [ "${CT_DEBUG_gdb}"     ] && printf " gdb-${CT_GDB_VERSION}"
             [ "${CT_DEBUG_ltrace}"  ] && printf " ltrace-${CT_LTRACE_VERSION}"
@@ -130,7 +129,7 @@ dump_single_sample() {
                 ;;
             canadian)
                 printf "| ''"
-                printf "${sample}" |${sed} -r -e 's/.*,//'
+                printf "${sample}" |${sed_r} -e 's/.*,//'
                 printf "''  | ${CT_HOST}  "
                 ;;
             *)          ;;

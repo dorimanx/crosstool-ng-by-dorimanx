@@ -81,6 +81,9 @@ config CC_GCC_SYSTEM_ZLIB
     help
       Do not use bundled zlib, and use the zlib already available for
       the host (eg. the system library).
+
+      If zlib is built as a companion library, selecting this option
+      will use it.
       
       If you want to build a static toolchain, you will need to also
       install the static version of zlib for your host.
@@ -181,6 +184,17 @@ config CC_GCC_LIBSANITIZER
         - racy data accesses (in multi-threaded programs)
 
       The default is 'N'. Say 'Y' if you need it, and report success/failure.
+
+config CC_GCC_LIBMPX
+    bool
+    default y
+    prompt "Compile libmpx"
+    depends on CC_GCC_HAS_LIBMPX
+    depends on ARCH_x86
+    # MUSL does not define libc types that GCC requires. Mingw lacks certain headers.
+    depends on !LIBC_musl && ! LIBC_mingw
+    help
+      Enable GCC support for Intel Memory Protection Extensions (MPX).
 
 #-----------------------------------------------------------------------------
 

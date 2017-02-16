@@ -29,7 +29,6 @@ do_cloog_extract() {
 
 # Build CLooG for running on build
 # - always build statically
-# - we do not have build-specific CFLAGS
 # - install in build-tools prefix
 do_cloog_for_build() {
     local -a cloog_opts
@@ -98,6 +97,7 @@ do_cloog_backend() {
     CFLAGS="${cflags}"                                  \
     LDFLAGS="${ldflags}"                                \
     LIBS="-lm"                                          \
+    ${CONFIG_SHELL}                                     \
     "${CT_SRC_DIR}/cloog-${CT_CLOOG_VERSION}/configure" \
         --build=${CT_BUILD}                             \
         --host=${host}                                  \
@@ -109,15 +109,20 @@ do_cloog_backend() {
         "${cloog_opts[@]}"
 
     CT_DoLog EXTRA "Building CLooG"
-    CT_DoExecLog ALL ${make} ${JOBSFLAGS}
+    CT_DoExecLog ALL make ${JOBSFLAGS}
 
     if [ "${CT_COMPLIBS_CHECK}" = "y" ]; then
-        CT_DoLog EXTRA "Checking CLooG"
-        CT_DoExecLog ALL ${make} ${JOBSFLAGS} -s check
+        if [ "${host}" = "${CT_BUILD}" ]; then
+            CT_DoLog EXTRA "Checking CLooG"
+            CT_DoExecLog ALL make ${JOBSFLAGS} -s check
+        else
+            # Cannot run host binaries on build in a canadian cross
+            CT_DoLog EXTRA "Skipping check for CLooG on the host"
+        fi
     fi
 
     CT_DoLog EXTRA "Installing CLooG"
-    CT_DoExecLog ALL ${make} install
+    CT_DoExecLog ALL make install
 }
 
 fi # CT_CLOOG
