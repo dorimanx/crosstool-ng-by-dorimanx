@@ -117,7 +117,7 @@ cat "${CT_LIB_DIR}/paths.sh" |while read trash line; do
     fi
     CT_DoLog DEBUG "Creating script-override for '${tool}' -> '${path}' using '${tmpl}' template"
     CT_DoExecLog ALL cp "${tmpl}" "${CT_TOOLS_OVERRIDE_DIR}/bin/${tool}"
-    CT_DoExecLog ALL ${sed_r} -i \
+    CT_DoExecLog ALL ${sed} -i -r \
               -e "s#@CONFIG_SHELL@#${CT_CONFIG_SHELL}#g" \
               -e "s#@TOOL_PATH@#${path}#g" \
               -e "s#@TOOLS_OVERRIDE_DIR@#${CT_TOOLS_OVERRIDE_DIR}#g" \
@@ -148,7 +148,7 @@ CT_DoLog INFO "Building environment variables"
 CT_TestAndAbort "'CT_PREFIX_DIR' is not set: where should I install?" -z "${CT_PREFIX_DIR}"
 
 # Avoid multiple '/' in the prefix dir, it breaks relocatability
-CT_PREFIX_DIR="$( ${sed_r} -e 's:/+:/:g; s:/*$::;' <<<"${CT_PREFIX_DIR}" )"
+CT_PREFIX_DIR="$( ${sed} -r -e 's:/+:/:g; s:/*$::;' <<<"${CT_PREFIX_DIR}" )"
 
 # Second kludge: merge user-supplied target CFLAGS with architecture-provided
 # target CFLAGS. Do the same for LDFLAGS in case it happens in the future.
@@ -227,9 +227,12 @@ CT_SYS_REVISION=$(uname -r)
 CT_SYS_OS=$(uname -s)
 CT_SYS_MACHINE=$(uname -m)
 CT_SYS_PROCESSOR=$(uname -p)
-CT_SYS_GCC=$(gcc -dumpversion)
+CT_SYS_GCC=$(${CT_BUILD_PREFIX}gcc${CT_BUILD_SUFFIX} -dumpversion)
 CT_SYS_TARGET=$(CT_DoConfigGuess)
 CT_TOOLCHAIN_ID="crosstool-${CT_VERSION} build ${CT_STAR_DATE_HUMAN} by ${CT_SYS_USER}@${CT_SYS_HOSTNAME}"
+
+# Adjust the list of multilibs, if needed
+CT_DoArchMultilibList
 
 CT_DoLog EXTRA "Preparing working directories"
 
@@ -279,6 +282,9 @@ CT_DoExecLog ALL chmod -R u+w "${CT_PREFIX_DIR}"
 
 # Setting up the rest of the environment only if not restarting
 if [ -z "${CT_RESTART}" ]; then
+    # Having .. inside CT_PREFIX breaks relocatability.
+    CT_SanitizeVarDir CT_PREFIX_DIR
+
     case "${CT_SYSROOT_NAME}" in
         "")     CT_SYSROOT_NAME="sysroot";;
         .)      CT_Abort "Sysroot name is set to '.' which is forbidden";;
@@ -288,11 +294,10 @@ if [ -z "${CT_RESTART}" ]; then
 
     # Arrange paths depending on whether we use sysroot or not.
     if [ "${CT_USE_SYSROOT}" = "y" ]; then
-        CT_SYSROOT_REL_DIR="${CT_SYSROOT_DIR_PREFIX:+${CT_SYSROOT_DIR_PREFIX}/}${CT_SYSROOT_NAME}"
-        CT_SYSROOT_DIR="${CT_PREFIX_DIR}/${CT_TARGET}/${CT_SYSROOT_REL_DIR}"
+        CT_SYSROOT_DIR="${CT_PREFIX_DIR}/${CT_TARGET}/${CT_SYSROOT_DIR_PREFIX}/${CT_SYSROOT_NAME}"
         CT_DEBUGROOT_DIR="${CT_PREFIX_DIR}/${CT_TARGET}/${CT_SYSROOT_DIR_PREFIX}/debug-root"
         CT_HEADERS_DIR="${CT_SYSROOT_DIR}/usr/include"
-        CT_SanitizeVarDir CT_SYSROOT_REL_DIR CT_SYSROOT_DIR CT_DEBUGROOT_DIR CT_HEADERS_DIR
+        CT_SanitizeVarDir CT_SYSROOT_DIR CT_DEBUGROOT_DIR CT_HEADERS_DIR
         BINUTILS_SYSROOT_ARG="--with-sysroot=${CT_SYSROOT_DIR}"
         CC_CORE_SYSROOT_ARG="--with-sysroot=${CT_SYSROOT_DIR}"
         CC_SYSROOT_ARG="--with-sysroot=${CT_SYSROOT_DIR}"
@@ -534,7 +539,7 @@ if [ -z "${CT_RESTART}" ]; then
     fi
     # Use the number of processors+1 when automatically setting the number of
     # parallel jobs.  Fall back to 1 if the host doesn't use GLIBC.
-    AUTO_JOBS=$((`getconf _NPROCESSORS_ONLN 2> /dev/null || echo 0` + 1))
+    AUTO_JOBS=$((`@@CT_cpucount@@ 2>/dev/null || echo 0` + 1))
     [ ${CT_PARALLEL_JOBS} -eq 0 ] && JOBSFLAGS="${JOBSFLAGS} -j${AUTO_JOBS}"
     [ ${CT_PARALLEL_JOBS} -gt 0 ] && JOBSFLAGS="${JOBSFLAGS} -j${CT_PARALLEL_JOBS}"
     JOBSFLAGS="${JOBSFLAGS} -l${CT_LOAD}"
@@ -558,18 +563,18 @@ if [ -z "${CT_RESTART}" ]; then
     rm -f "${gccout}"
     CT_EndStep
 
+    # These tests are only enabled if we need static linking on the *build*
     if [ "${CT_WANTS_STATIC_LINK}" = "y" ]; then
         CT_DoStep DEBUG "Checking that gcc can compile a trivial statically linked program (CT_WANTS_STATIC_LINK)"
         CT_DoLog DEBUG "You may need to ensure that static libraries such as libc.a are installed on your system"
-        CT_DoExecLog DEBUG "${CT_HOST}-gcc" ${CT_CFLAGS_FOR_HOST} ${CT_LDFLAGS_FOR_HOST} "${testc}" -static -o "${gccout}"
+        CT_DoExecLog DEBUG "${CT_HOST}-gcc" ${CT_CFLAGS_FOR_BUILD} ${CT_LDFLAGS_FOR_BUILD} "${testc}" -static -o "${gccout}"
         rm -f "${gccout}"
         CT_EndStep
     fi
-
-    if [ "${CT_CC_GCC_STATIC_LIBSTDCXX}" = "y" ]; then
-        CT_DoStep DEBUG "Checking that gcc can statically link libstdc++ (CT_CC_GCC_STATIC_LIBSTDCXX)"
+    if [ "${CT_WANTS_STATIC_LINK_CXX}" = "y" ]; then
+        CT_DoStep DEBUG "Checking that gcc can statically link libstdc++ (CT_WANTS_STATIC_LINK_CXX)"
         CT_DoLog DEBUG "You may need to ensure that libstdc++.a is installed on your system"
-        CT_DoExecLog DEBUG "${CT_HOST}-gcc" ${CT_CFLAGS_FOR_HOST} ${CT_LDFLAGS_FOR_HOST} "${testc}" -static -lstdc++ -o "${gccout}"
+        CT_DoExecLog DEBUG "${CT_HOST}-gcc" ${CT_CFLAGS_FOR_BUILD} ${CT_LDFLAGS_FOR_BUILD} "${testc}" -static -lstdc++ -o "${gccout}"
         rm -f "${gccout}"
         CT_EndStep
     fi

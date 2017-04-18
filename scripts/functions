@@ -4,10 +4,6 @@
 # Copyright 2007 Yann E. MORIN
 # Licensed under the GPL v2. See COPYING in the root of this package
 
-# NOTE: The functions in this file may be used before the tools override
-# directory is created (or in the scripts that don't create the tools override
-# directory at all). Therefore, use the variables exported by paths.sh.
-
 CT_LoadConfig() {
     local o
 
@@ -53,7 +49,7 @@ CT_LoadConfig() {
     fi
     # Double eval: first eval substitutes option name, second eval unescapes quotes
     # and whitespace.
-    for o in `set | ${sed_r} -n 's/^(CT_[A-Za-z0-9_]*_ARRAY)=.*/\1/p'`; do
+    for o in `set | ${sed} -rn 's/^(CT_[A-Za-z0-9_]*_ARRAY)=.*/\1/p'`; do
         eval "eval $o=(\"\$$o\")"
     done
 }
@@ -160,6 +156,13 @@ CT_OnError() {
         fi
         CT_DoLog ERROR ">>  There is a list of known issues, some with workarounds, in:"
         CT_DoLog ERROR ">>      '${CT_DOC_DIR#${CT_TOP_DIR}/}/B - Known issues.txt'"
+        CT_DoLog ERROR ">>"
+        CT_DoLog ERROR ">>  If you feel this is a bug in crosstool-NG, report it at:"
+        CT_DoLog ERROR ">>      https://github.com/crosstool-ng/crosstool-ng/issues/"
+        CT_DoLog ERROR ">>"
+        CT_DoLog ERROR ">>  Make sure your report includes all the information pertinent to this issue."
+        CT_DoLog ERROR ">>  Read the bug reporting guidelines here:"
+        CT_DoLog ERROR ">>      http://crosstool-ng.github.io/support/"
 
         CT_DoLog ERROR ""
         CT_DoEnd ERROR
@@ -426,7 +429,7 @@ CT_SanitizeVarDir() {
     }
     if (!seencomp && !isabs && !trail) {
         # Eliminated all components, but no trailing slash -
-        # if the result is appened with /foo, must not become absolute
+        # if the result is appended with /foo, must not become absolute
         printf ".";
     }
     if ((!seencomp && isabs) || (seencomp && trail)) {
@@ -495,7 +498,7 @@ CT_Which() {
 # to the highest entire second
 # Usage: CT_DoDate <fmt>
 CT_DoDate() {
-    date "$1" | ${sed_r} -e 's/%?N$/000000000/;'
+    date "$1" |${sed} -r -e 's/%?N$/000000000/;'
 }
 
 CT_STEP_COUNT=1
@@ -518,7 +521,7 @@ CT_DoStep() {
 CT_EndStep() {
     local stop=$(CT_DoDate +%s%N)
     local duration=$(printf "%032d" $((stop-${CT_STEP_START[${CT_STEP_COUNT}]})) \
-                     | ${sed_r} -e 's/([[:digit:]]{2})[[:digit:]]{7}$/\.\1/; s/^0+//; s/^\./0\./;'
+                     |${sed} -r -e 's/([[:digit:]]{2})[[:digit:]]{7}$/\.\1/; s/^0+//; s/^\./0\./;'
                     )
     local elapsed=$(printf "%02d:%02d" $((SECONDS/60)) $((SECONDS%60)))
     local level="${CT_STEP_LEVEL[${CT_STEP_COUNT}]}"
@@ -622,13 +625,8 @@ CT_SetLibPath() {
 # Build up the list of allowed tarball extensions
 # Add them in the prefered order; most preferred comes first
 CT_DoListTarballExt() {
-    if [ "${CT_CONFIGURE_has_xz}" = "y" ]; then
-        printf ".tar.xz\n"
-    fi
-    if [    "${CT_CONFIGURE_has_lzma}" = "y"    \
-         -o "${CT_CONFIGURE_has_xz}" = "y" ]; then
-        printf ".tar.lzma\n"
-    fi
+    printf ".tar.xz\n"
+    printf ".tar.lzma\n"
     printf ".tar.bz2\n"
     printf ".tar.gz\n.tgz\n"
     printf ".tar\n"
@@ -1006,7 +1004,7 @@ CT_GetGit() {
     local url="${3}"
     local _out_cset="${4}"
 
-    local ref=$(echo "${cset_or_ref}" | ${sed_r} -n 's/^ref=(.*)/\1/p')
+    local ref=$(echo "${cset_or_ref}" | ${sed} -n 's/^ref=\(.*\)/\1/p')
     if [ -n "$ref" ]; then
         local matches=$(git ls-remote --exit-code "$url" --refs "${ref}")
         local result=$?
@@ -1015,10 +1013,10 @@ CT_GetGit() {
             CT_DoLog WARN "Ambiguous ref ${ref} at ${url}, using first"
         fi
         local cset=$(echo "$matches" | head -n1 | cut -c1-6)
-        CT_DoLog INFO "ref ${ref} at ${url} has cset of ${cset}"
+        CT_DoLog DEBUG "ref ${ref} at ${url} has cset of ${cset}"
     else
         local cset=${cset_or_ref}
-        CT_DoLog INFO "cset ${cset}"
+        CT_DoLog DEBUG "cset ${cset}"
     fi
 
     if [ -n "${_out_cset}" ]; then
@@ -1089,7 +1087,6 @@ CT_Extract() {
     local nochdir="$1"
     local basename
     local ext
-    local lzma_prog
     local -a tar_opts
 
     if [ "${nochdir}" = "nochdir" ]; then
@@ -1132,19 +1129,9 @@ CT_Extract() {
     tar_opts+=( "-C" "${basename}" )
     tar_opts+=( "-xv" )
 
-    # One note here:
-    # - lzma can be handled either with 'xz' or 'lzma'
-    # - we get lzma tarball only if either or both are available
-    # - so, if we get an lzma tarball, and either 'xz' or 'lzma' is
-    #   missing, we can assume the other is available
-    if [ "${CT_CONFIGURE_has_lzma}" = "y" ]; then
-        lzma_prog="lzma -fdc"
-    else
-        lzma_prog="xz -fdc"
-    fi
     case "${ext}" in
         .tar.xz)      xz -fdc "${full_file}" | CT_DoExecLog FILE tar "${tar_opts[@]}" -f -;;
-        .tar.lzma)    ${lzma_prog} "${full_file}" | CT_DoExecLog FILE tar "${tar_opts[@]}" -f -;;
+        .tar.lzma)    xz -fdc "${full_file}" | CT_DoExecLog FILE tar "${tar_opts[@]}" -f -;;
         .tar.bz2)     bzip2 -dc "${full_file}" | CT_DoExecLog FILE tar "${tar_opts[@]}" -f -;;
         .tar.gz|.tgz) gzip -dc "${full_file}" | CT_DoExecLog FILE tar "${tar_opts[@]}" -f -;;
         .tar)         CT_DoExecLog FILE tar "${tar_opts[@]}" -f "${full_file}";;
@@ -1186,7 +1173,7 @@ CT_ExtractGit() {
     if [ -z "${ref}" ]; then
         ref_type=head
         ref=$(git rev-list -n1 HEAD)
-    elif git tag |${grep} -E "^${ref}$" >/dev/null 2>&1; then
+    elif git tag |{grep} -E "^${ref}$" >/dev/null 2>&1; then
         ref_type=tag
     elif git branch -a --no-color |${grep} -E "^. ${ref}$" >/dev/null 2>&1; then
         ref_type=branch
@@ -1429,7 +1416,7 @@ CT_DoBuildTargetTuple() {
     # Sanity checks
     __sed_alias=""
     if [ -n "${CT_TARGET_ALIAS_SED_EXPR}" ]; then
-        __sed_alias=$(echo "${CT_TARGET}" | ${sed_r} -e "${CT_TARGET_ALIAS_SED_EXPR}")
+        __sed_alias=$(echo "${CT_TARGET}" |${sed} -r -e "${CT_TARGET_ALIAS_SED_EXPR}")
     fi
     case ":${CT_TARGET_VENDOR}:${CT_TARGET_ALIAS}:${__sed_alias}:" in
       :*" "*:*:*:) CT_Abort "Don't use spaces in the vendor string, it breaks things.";;
@@ -1502,7 +1489,7 @@ CT_DoTarballIfExists() {
         CT_DoLog DEBUG "  Saving '${dir}'"
         { tar c -C "${dir}" -v -f - "${extra_tar_opts[@]}" .    \
           |"${compress[@]}" >"${tarball}.tar${tar_ext}"         ;
-        } 2>&1 | ${sed_r} -e 's/^/    /;' |CT_DoLog STATE
+        } 2>&1 |${sed} -r -e 's/^/    /;' |CT_DoLog STATE
     else
         CT_DoLog STATE "  Not saving '${dir}': does not exist"
     fi
@@ -1529,7 +1516,7 @@ CT_DoExtractTarballIfExists() {
         CT_DoExecLog DEBUG mkdir -p "${dir}"
         { "${uncompress[@]}" "${tarball}.tar${tar_ext}"     \
           |tar x -C "${dir}" -v -f - "${extra_tar_opts[@]}" ;
-        } 2>&1 | ${sed_r} -e 's/^/    /;' |CT_DoLog STATE
+        } 2>&1 |${sed} -r -e 's/^/    /;' |CT_DoLog STATE
     else
         CT_DoLog STATE "  Not restoring '${dir}': does not exist"
     fi
@@ -1557,7 +1544,7 @@ CT_DoSaveState() {
               $0~/^[^ ]+ \(\)/ { _p = 0; }
               _p == 1
               $0 == "}" { _p = 1; }
-              ' | ${sed_r} -e '/^BASH_(ARGC|ARGV|LINENO|SOURCE|VERSINFO)=/d;
+              ' |${sed} -r -e '/^BASH_(ARGC|ARGV|LINENO|SOURCE|VERSINFO)=/d;
                            /^(UID|EUID)=/d;
                            /^(FUNCNAME|GROUPS|PPID|SHELLOPTS)=/d;' >"${state_dir}/env.sh"
 
@@ -1618,9 +1605,9 @@ CT_KconfigSetOption() {
     local file="$3"
 
     ${grep} -E -q "^${option}=.*" "${file}" && \
-        ${sed_r} -i -e "s;^${option}=.*$;${option}=${value};" "${file}" || \
+        ${sed} -i -r -e "s;^${option}=.*$;${option}=${value};" "${file}" || \
     ${grep} -E -q "^# ${option} is not set$" "${file}" && \
-        ${sed_r} -i -e "s;^# ${option} is not set$;${option}=${value};" "${file}" || \
+        ${sed} -i -r -e "s;^# ${option} is not set$;${option}=${value};" "${file}" || \
     echo "${option}=${value}" >> "${file}"
 }
 
@@ -1641,7 +1628,7 @@ CT_KconfigDisableOption() {
 
     ${grep} -E -q "^# ${option} is not set$" "${file}" || \
     ${grep} -E -q "^${option}=.*$" "${file}" && \
-        ${sed_r} -i -e "s;^${option}=.*$;# ${option} is not set;" "${file}" || \
+        ${sed} -i -r -e "s;^${option}=.*$;# ${option} is not set;" "${file}" || \
     echo "# ${option} is not set" >> "${file}"
 }
 
@@ -1653,9 +1640,9 @@ CT_KconfigDeleteOption() {
     local file="${2}"
 
     ${grep} -E -q "^# ${option} is not set$" "${file}" && \
-        ${sed_r} -i -e "/^# ${option} is not set$/d" "${file}" || \
+        ${sed} -i -r -e "/^# ${option} is not set$/d" "${file}" || \
     ${grep} -E -q "^${option}=.*$" "${file}" && \
-        ${sed_r} -i -e "/^${option}=.*$/d" "${file}" || true
+        ${sed} -i -r -e "/^${option}=.*$/d" "${file}" || true
 }
 
 # Multilib iterator. The caller should be in a directory where the directories
@@ -1724,7 +1711,7 @@ CT_IterateMultilibs() {
         # We do supply original multi_os_dir for consumers that need to look inside
         # GCC's directories (e.g. to locate the libraries), under the name of
         # multi_os_dir_gcc.
-        multi_flags=$( echo "${multilib#*;}" | ${sed_r} -e 's/@/ -/g;' )
+        multi_flags=$( echo "${multilib#*;}" | ${sed} -r -e 's/@/ -/g;' )
         multi_dir="${multilib%%;*}"
         multi_os_dir=$( "${CT_TARGET}-${CT_CC}" -print-multi-os-directory ${multi_flags} )
         multi_root=$( "${CT_TARGET}-${CT_CC}" -print-sysroot ${multi_flags} )
@@ -1744,7 +1731,7 @@ CT_IterateMultilibs() {
     # the architecture-specific functions.
     multi_index=1
     for multilib in "${multilibs[@]}"; do
-        multi_flags=$( echo "${multilib#*;}" | ${sed_r} -e 's/@/ -/g;' )
+        multi_flags=$( echo "${multilib#*;}" | ${sed} -r -e 's/@/ -/g;' )
         multi_dir="${multilib%%;*}"
         multi_os_dir=$( "${CT_TARGET}-${CT_CC}" -print-multi-os-directory ${multi_flags} )
         multi_os_dir_gcc="${multi_os_dir}"
@@ -1770,15 +1757,160 @@ CT_IterateMultilibs() {
         dir_postfix=_${multi_dir//\//_}
         dir_postfix=${dir_postfix%_.}
         CT_mkdir_pushd "${prefix}${dir_postfix}"
-        $func multi_dir="${multi_dir}"       \
-              multi_os_dir="${multi_os_dir}" \
-              multi_flags="${multi_flags}"   \
-              multi_root="${multi_root}"     \
-              multi_target="${multi_target}" \
-              multi_index="${multi_index}"   \
-              multi_count="${#multilibs[@]}" \
+        $func multi_dir="${multi_dir}"               \
+              multi_os_dir="${multi_os_dir}"         \
+              multi_os_dir_gcc="${multi_os_dir_gcc}" \
+              multi_flags="${multi_flags}"           \
+              multi_root="${multi_root}"             \
+              multi_target="${multi_target}"         \
+              multi_index="${multi_index}"           \
+              multi_count="${#multilibs[@]}"         \
               "$@"
         CT_Popd
         multi_index=$((multi_index+1))
     done
+}
+
+# Create symbolic links in buildtools for binutils using a different
+# target name.
+# Usage:
+#   CT_SymlinkTools BIN-DIR SRC-DIR NEW-PREFIX SED-EXPR
+CT_SymlinkTools()
+{
+    local bindir="$1"
+    local srcdir="$2"
+    local newpfx="$3"
+    local sedexpr="$4"
+    local dirpfx
+    local t _t
+
+    # if bindir==srcdir, create symlinks just with the filename
+    if [ "${bindir}" != "${srcdir}" ]; then
+        dirpfx="${srcdir}/"
+    fi
+
+    CT_Pushd "${srcdir}"
+    for t in "${CT_TARGET}-"*; do
+        if [ "${t}" = "${CT_TARGET}-*" ]; then
+            # No matching files
+            break
+        fi
+        if [ -n "${newpfx}" -a \( "${newpfx}" != "${CT_TARGET}" -o "${bindir}" != "${srcdir}" \) ]; then
+            _t="${newpfx}-${t#${CT_TARGET}-}"
+            CT_DoExecLog ALL ln -sfv "${dirpfx}${t}" "${bindir}/${_t}"
+        fi
+        if [ -n "${sedexpr}" ]; then
+            _t=$( echo "${t}" | sed -r -e "${sedexpr}" )
+            if [ "${_t}" = "${t}" ]; then
+                CT_DoLog WARN "The sed expression '${sedexpr}' has no effect on '${t}'"
+            else
+                CT_DoExecLog ALL ln -sfv "${dirpfx}${t}" "${bindir}/${_t}"
+            fi
+        fi
+    done
+    CT_Popd
+}
+
+# Create symbolic links for multilib iterator. Expects ${multi_target}
+# variable to indicate the desired triplet for the tools.
+CT_SymlinkToolsMultilib()
+{
+    # Make configure detect ${target}-tool binaries even if it is different
+    # from configured tuple. Only symlink to final tools if they're executable
+    # on build.
+    CT_SymlinkTools "${CT_BUILDTOOLS_PREFIX_DIR}/bin" \
+        "${CT_BUILDTOOLS_PREFIX_DIR}/bin" "${multi_target}"
+    case "${CT_TOOLCHAIN_TYPE}" in
+        native|cross)
+            CT_SymlinkTools "${CT_BUILDTOOLS_PREFIX_DIR}/bin" \
+                "${CT_PREFIX_DIR}/bin" "${multi_target}"
+            ;;
+    esac
+}
+
+# Helper (iterator) for CT_MultilibFixupLDSO
+CT__FixupLDSO()
+{
+    local multi_dir multi_os_dir multi_root multi_flags multi_index multi_count multi_target
+    local binary
+    local ldso ldso_l ldso_f ldso_d ldso_u multilib_dir
+
+    for arg in "$@"; do
+        eval "${arg// /\\ }"
+    done
+
+    CT_DoLog EXTRA "Checking dynamic linker for multilib '${multi_flags}'"
+
+    multilib_dir="/lib/${multi_os_dir}"
+    CT_SanitizeVarDir multilib_dir
+
+    CT_DoExecLog ALL "${CT_TARGET}-${CT_CC}" -o test-ldso ../test-ldso.c ${multi_flags}
+    if [ -r "test-ldso.gdb" ]; then
+        binary="test-ldso.gdb"
+    else
+        binary="test-ldso"
+    fi
+    if ${CT_TARGET}-readelf -Wl "${binary}" | grep -q 'Requesting program interpreter: '; then
+        ldso=$( ${CT_TARGET}-readelf -Wl "${binary}" | \
+            grep 'Requesting program interpreter: ' | \
+            sed -e 's,.*: ,,' -e 's,\].*,,' )
+    fi
+    CT_DoLog DEBUG "Detected dynamic linker for multilib '${multi_flags}': '${ldso}'"
+
+    # Create symlink if GCC produced a dynamically linked executable.
+    if [ -z "${ldso}" ]; then
+        return # Probably, we're building a static toolchain.
+    fi
+
+    ldso_d="${ldso%/ld*.so.*}"
+    ldso_f="${ldso##*/}"
+
+    # Convert ldso_d to "how many levels we need to go up" and remove
+    # leading slash.
+    ldso_u=$( echo "${ldso_d#/}" | sed 's,[^/]\+,..,g' )
+
+    # If the requested dynamic linker exists, but is a symlink - check that it is either
+    # relative (in which case, if it is readable, we trust libc to have created it properly)
+    # or otherwise, convert it from absolute (target) path to a relative path that works on
+    # both host & target.
+    if [ -L "${multi_root}${ldso}" ]; then
+        ldso_l=`readlink "${multi_root}${ldso}"`
+        case "${ldso_l}" in
+            /*) # Absolute, convert to relative
+                if [ -r "${multi_root}${ldso_l}" ]; then
+                    CT_DoExecLog ALL ln -sfv "${ldso_u}${ldso_l}" "${multi_root}${ldso}"
+                else
+                    CT_DoLog WARN "Compiler selects '${ldso}' as dynamic linker for '${multi_flags}'"
+                    CT_DoLog WARN "but '${ldso}' is a symlink to '${ldso_l}' which is not valid on target."
+                fi
+                ;;
+            *) # Relative, must be readable
+                if [ ! -r "${multi_root}${ldso}" ]; then
+                    CT_DoLog WARN "Compiler selects '${ldso}' as dynamic linker for '${multi_flags}'"
+                    CT_DoLog WARN "but '${ldso}' is a symlink to '${ldso_l}' which is invalid relative symlink."
+                fi
+                ;;
+        esac
+        return
+    elif [ -r "${multi_root}${ldso}" ]; then
+        return # Not a symlink but readable - looks like libc installed a real executable.
+    fi
+
+    # Is it requesting a linker not in the current directory? uClibc case.
+    if [ "${ldso_d}" != "${multilib_dir}" ]; then
+        CT_DoExecLog ALL ln -sfv "${ldso_u}${multilib_dir}/${ldso_f}" \
+            "${multi_root}${ldso}"
+    fi
+}
+
+# Go over multilib variants and check that the requested dynamic linker
+# is present and resolves on both target and host.
+CT_MultilibFixupLDSO()
+{
+    CT_DoStep INFO "Checking dynamic linker symlinks"
+    CT_mkdir_pushd "${CT_BUILD_DIR}/build-libc-check-ldso"
+    echo "int main(void) { return 0; }" > test-ldso.c
+    CT_IterateMultilibs CT__FixupLDSO ldso_fixup
+    CT_Popd
+    CT_EndStep
 }

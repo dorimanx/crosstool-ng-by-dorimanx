@@ -158,7 +158,7 @@ do_libc_backend() {
 #   libc_mode           : 'startfiles' or 'final'               : string    : (empty)
 #   multi_*             : as defined in CT_IterateMultilibs     : (varies)  :
 do_libc_backend_once() {
-    local multi_flags multi_dir multi_os_dir multi_root multi_index multi_count
+    local multi_flags multi_dir multi_os_dir multi_root multi_index multi_count multi_target
     local build_cflags build_cppflags build_ldflags
     local startfiles_dir
     local src_dir="${CT_SRC_DIR}/${CT_LIBC}-${CT_LIBC_VERSION}"
@@ -247,6 +247,10 @@ do_libc_backend_once() {
     [ -n "${CT_TOOLCHAIN_BUGURL}" ] && extra_config+=("--with-bugurl=${CT_TOOLCHAIN_BUGURL}")
 
     touch config.cache
+
+    # Hide host C++ binary from configure
+    echo "ac_cv_prog_ac_ct_CXX=${CT_TARGET}-g++" >>config.cache
+
     if [ "${CT_LIBC_GLIBC_FORCE_UNWIND}" = "y" ]; then
         echo "libc_cv_forced_unwind=yes" >>config.cache
         echo "libc_cv_c_cleanup=yes" >>config.cache
@@ -292,6 +296,8 @@ do_libc_backend_once() {
     # directly mangle the generated scripts _after_ they get built,
     # or even after they get installed...
     echo "ac_cv_path_BASH_SHELL=/bin/bash" >>config.cache
+
+    CT_SymlinkToolsMultilib
 
     # Configure with --prefix the way we want it on the target...
     # There are a whole lot of settings here.  You'll probably want
@@ -346,13 +352,21 @@ do_libc_backend_once() {
     build_ldflags="${CT_LDFLAGS_FOR_BUILD}"
 
     case "$CT_BUILD" in
-        *mingw*|*cygwin*|*msys*|*darwin*)
+        *mingw*|*cygwin*|*msys*|*darwin*|*freebsd*)
             # When installing headers on Cygwin, Darwin, MSYS2 and MinGW-w64 sunrpc needs
             # gettext for building cross-rpcgen.
             build_cppflags="${build_cppflags} -I${CT_BUILDTOOLS_PREFIX_DIR}/include/"
             build_ldflags="${build_ldflags} -lintl -liconv"
+            case "$CT_BUILD" in
+                *cygwin*|*freebsd*)
+                # Additionally, stat in FreeBSD, Cygwin, and possibly others
+                # is always 64bit, so replace struct stat64 with stat.
+                build_cppflags="${build_cppflags} -Dstat64=stat"
+                ;;
+            esac
             ;;
     esac
+
     extra_make_args+=( "BUILD_CFLAGS=${build_cflags}" )
     extra_make_args+=( "BUILD_CPPFLAGS=${build_cppflags}" )
     extra_make_args+=( "BUILD_LDFLAGS=${build_ldflags}" )
@@ -473,7 +487,7 @@ do_libc_backend_once() {
 do_libc_add_ons_list() {
     local sep="$1"
     local addons_list="$( echo "${CT_LIBC_ADDONS_LIST}"            \
-                          |sed_r -e "s/[[:space:],]/${sep}/g;" \
+                          |sed -r -e "s/[[:space:],]/${sep}/g;" \
                         )"
     if [ "${CT_LIBC_GLIBC_2_20_or_later}" != "y" ]; then
         case "${CT_THREADS}" in
@@ -483,7 +497,7 @@ do_libc_add_ons_list() {
     fi
     [ "${CT_LIBC_GLIBC_USE_PORTS}" = "y" ] && addons_list="${addons_list}${sep}ports"
     # Remove duplicate, leading and trailing separators
-    echo "${addons_list}" |sed_r -e "s/${sep}+/${sep}/g; s/^${sep}//; s/${sep}\$//;"
+    echo "${addons_list}" |sed -r -e "s/${sep}+/${sep}/g; s/^${sep}//; s/${sep}\$//;"
 }
 
 # Compute up the minimum supported Linux kernel version
@@ -512,7 +526,7 @@ do_libc_min_kernel_config() {
             elif [ "${CT_LIBC_GLIBC_KERNEL_VERSION_CHOSEN}" = "y" ]; then
                 # Trim the fourth part of the linux version, keeping only the first three numbers
                 min_kernel_config="$( echo "${CT_LIBC_GLIBC_MIN_KERNEL_VERSION}"               \
-                                      |sed_r -e 's/^([^.]+\.[^.]+\.[^.]+)(|\.[^.]+)$/\1/;' \
+                                      |sed -r -e 's/^([^.]+\.[^.]+\.[^.]+)(|\.[^.]+)$/\1/;' \
                                     )"
             fi
             echo "--enable-kernel=${min_kernel_config}"
@@ -525,6 +539,15 @@ do_libc_locales() {
     local src_dir="${CT_SRC_DIR}/glibc-${CT_LIBC_VERSION}"
     local -a extra_config
     local glibc_cflags
+
+    # To build locales, we'd need to build glibc for the build machine.
+    # Bail out if the host is not supported.
+    case "${CT_BUILD}" in
+        *-cygwin|*-darwin*)
+            CT_DoLog EXTRA "Skipping GNU libc locales: incompatible build machine"
+            return
+            ;;
+    esac
 
     mkdir -p "${CT_BUILD_DIR}/build-localedef"
     cd "${CT_BUILD_DIR}/build-localedef"

@@ -80,8 +80,6 @@ do_libc_backend() {
 
     CT_mkdir_pushd "${CT_BUILD_DIR}/build-libc-${libc_mode}"
     CT_IterateMultilibs do_libc_backend_once multilib libc_mode="${libc_mode}"
-
-
     CT_Popd
     CT_EndStep
 }
@@ -104,7 +102,7 @@ do_libc_backend_once() {
 
     # Simply copy files until uClibc has the ability to build out-of-tree
     CT_DoLog EXTRA "Copying sources to build dir"
-    CT_DoExecLog ALL cp -aT "${CT_SRC_DIR}/${uclibc_name}-${CT_LIBC_VERSION}/." .
+    CT_DoExecLog ALL cp -av "${CT_SRC_DIR}/${uclibc_name}-${CT_LIBC_VERSION}/." .
 
     multilib_dir="lib/${multi_os_dir}"
     startfiles_dir="${multi_root}/usr/${multilib_dir}"
@@ -121,6 +119,7 @@ do_libc_backend_once() {
     # - We do _not_ want to strip anything for now, in case we specifically
     #   asked for a debug toolchain, thus the STRIPTOOL= assignment.
     make_args=( CROSS_COMPILE="${CT_TARGET}-"                           \
+                HOSTCC="${CT_BUILD}-gcc"                                \
                 PREFIX="${multi_root}/"                                 \
                 MULTILIB_DIR="${multilib_dir}"                          \
                 LOCALE_DATA_FILENAME="${uclibc_locale_tarball}.tgz"     \
@@ -455,51 +454,5 @@ do_libc_post_cc() {
     # file in /lib. Thus, need to do this after all the variants are built.
     # Moreover, need to do this after the final compiler is built: on targets
     # that use elf2flt, the core compilers cannot find ld when running elf2flt.
-    CT_DoStep INFO "Checking dynamic linker symlinks"
-    CT_mkdir_pushd "${CT_BUILD_DIR}/build-libc-post_cc"
-    echo "int main(void) { return 0; }" > test-ldso.c
-    CT_IterateMultilibs do_libc_ldso_fixup ldso_fixup
-    CT_Popd
-    CT_EndStep
-}
-
-do_libc_ldso_fixup() {
-    local multi_dir multi_os_dir multi_root multi_flags multi_index multi_count
-    local binary
-    local ldso ldso_f ldso_d multilib_dir
-
-    for arg in "$@"; do
-        eval "${arg// /\\ }"
-    done
-
-    CT_DoLog EXTRA "Checking dynamic linker for multilib '${multi_flags}'"
-
-    multilib_dir="/lib/${multi_os_dir}"
-    CT_SanitizeVarDir multilib_dir
-
-    CT_DoExecLog ALL "${CT_TARGET}-${CT_CC}" -o test-ldso ../test-ldso.c ${multi_flags}
-    if [ -r "test-ldso.gdb" ]; then
-        binary="test-ldso.gdb"
-    else
-        binary="test-ldso"
-    fi
-    if ${CT_TARGET}-readelf -Wl "${binary}" | grep -q 'Requesting program interpreter: '; then
-        ldso=$( ${CT_TARGET}-readelf -Wl "${binary}" | \
-            grep 'Requesting program interpreter: ' | \
-            sed -e 's,.*: ,,' -e 's,\].*,,' )
-    fi
-    CT_DoLog DEBUG "Detected dynamic linker for multilib '${multi_flags}': '${ldso}'"
-
-    ldso_d="${ldso%/ld*.so.*}"
-    ldso_f="${ldso##*/}"
-    # Create symlink if GCC produced an executable, dynamically linked, it was requesting
-    # a linker not in the current directory, and there is no such file in the expected
-    # ldso dir.
-    if [ -n "${ldso}" -a "${ldso_d}" != "${multilib_dir}" -a ! -r "${multi_root}${ldso}" ]; then
-        # Convert ldso_d to "how many levels we need to go up" and remove
-        # leading slash.
-        ldso_d=$( echo "${ldso_d#/}" | sed 's,[^/]\+,..,g' )
-        CT_DoExecLog ALL ln -sf "${ldso_d}${multilib_dir}/${ldso_f}" \
-            "${multi_root}${ldso}"
-    fi
+    CT_MultilibFixupLDSO
 }

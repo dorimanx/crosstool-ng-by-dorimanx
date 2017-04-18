@@ -1,5 +1,27 @@
 # This file contains crosstool-NG internal steps
 
+create_ldso_conf()
+{
+    local multi_dir multi_os_dir multi_os_dir_gcc multi_root multi_flags multi_index multi_count multi_target
+    local b d
+
+    for arg in "$@"; do
+        eval "${arg// /\\ }"
+    done
+
+    CT_DoExecLog ALL mkdir -p "${multi_root}/etc"
+    for b in /lib /usr/lib "${CT_LDSO_CONF_EXTRA_DIRS_ARRAY[@]}"; do
+        d="${b}/${multi_os_dir}"
+        CT_SanitizeVarDir d
+        echo "${d}" >> "${multi_root}/etc/ld.so.conf"
+        if [ "${multi_os_dir}" != "${multi_os_dir_gcc}" ]; then
+            d="${b}/${multi_os_dir_gcc}"
+            CT_SanitizeVarDir d
+            echo "${d}" >> "${multi_root}/etc/ld.so.conf"
+        fi
+    done
+}
+
 # This step is called once all components were built, to remove
 # un-wanted files, to add tuple aliases, and to add the final
 # crosstool-NG-provided files.
@@ -10,12 +32,22 @@ do_finish() {
     local gcc_version
     local exe_suffix
 
-    CT_DoStep INFO "Cleaning-up the toolchain's directory"
+    CT_DoStep INFO "Finalizing the toolchain's directory"
+
+    if [ "${CT_CREATE_LDSO_CONF}" = "y" ]; then
+        # Create /etc/ld.so.conf
+        CT_mkdir_pushd "${CT_BUILD_DIR}/build-create-ldso"
+        CT_IterateMultilibs create_ldso_conf create-ldso
+        CT_Popd
+    fi
 
     if [ "${CT_STRIP_HOST_TOOLCHAIN_EXECUTABLES}" = "y" ]; then
         case "$CT_HOST" in
             *darwin*)
                 strip_args=""
+                ;;
+            *freebsd*)
+                strip_args="--strip-all"
                 ;;
             *)
                 strip_args="--strip-all -v"
@@ -47,7 +79,7 @@ do_finish() {
             if [ -f "${CT_SRC_DIR}/gcc-${CT_CC_GCC_VERSION}/gcc/BASE-VER" ]; then
                 gcc_version=$( cat "${CT_SRC_DIR}/gcc-${CT_CC_GCC_VERSION}/gcc/BASE-VER" )
             else
-                gcc_version=$(sed_r -e '/version_string/!d; s/^.+= "([^"]+)".*$/\1/;' \
+                gcc_version=$(sed -r -e '/version_string/!d; s/^.+= "([^"]+)".*$/\1/;' \
                                    "${CT_SRC_DIR}/gcc-${CT_CC_GCC_VERSION}/gcc/version.c" \
                              )
             fi
@@ -71,14 +103,13 @@ do_finish() {
 
     if [ "${CT_BARE_METAL}" != "y" ]; then
         CT_DoLog EXTRA "Installing the populate helper"
-        sed_r  -e 's|@@CT_TARGET@@|'"${CT_TARGET}"'|g;' \
-               -e 's|@@CT_install@@|'"${install}"'|g;'     \
-               -e 's|@@CT_awk@@|'"${awk}"'|g;'             \
+        sed -r -e 's|@@CT_TARGET@@|'"${CT_TARGET}"'|g;' \
+               -e 's|@@CT_install@@|'"install"'|g;'     \
+               -e 's|@@CT_awk@@|'"awk"'|g;'             \
                -e 's|@@CT_bash@@|'"${bash}"'|g;'           \
-               -e 's|@@CT_grep@@|'"${grep}"'|g;'           \
-               -e 's|@@CT_make@@|'"${make}"'|g;'           \
-               -e 's|@@CT_sed@@|'"${sed}"'|g;'             \
-               -e 's|@@CT_sed_r@@|'"${sed_r}"'|g;'         \
+               -e 's|@@CT_grep@@|'"grep"'|g;'           \
+               -e 's|@@CT_make@@|'"make"'|g;'           \
+               -e 's|@@CT_sed@@|'"sed"'|g;'             \
                "${CT_LIB_DIR}/scripts/populate.in"         \
                >"${CT_PREFIX_DIR}/bin/${CT_TARGET}-populate"
         CT_DoExecLog ALL chmod 755 "${CT_PREFIX_DIR}/bin/${CT_TARGET}-populate"
@@ -86,15 +117,14 @@ do_finish() {
 
     if [ "${CT_LIBC_XLDD}" = "y" ]; then
         CT_DoLog EXTRA "Installing a cross-ldd helper"
-        sed_r  -e 's|@@CT_VERSION@@|'"${CT_VERSION}"'|g;' \
+        sed -r -e 's|@@CT_VERSION@@|'"${CT_VERSION}"'|g;' \
                -e 's|@@CT_TARGET@@|'"${CT_TARGET}"'|g;'      \
                -e 's|@@CT_BITS@@|'"${CT_ARCH_BITNESS}"'|g;'  \
-               -e 's|@@CT_install@@|'"${install}"'|g;'       \
+               -e 's|@@CT_install@@|'"install"'|g;'       \
                -e 's|@@CT_bash@@|'"${bash}"'|g;'             \
-               -e 's|@@CT_grep@@|'"${grep}"'|g;'             \
-               -e 's|@@CT_make@@|'"${make}"'|g;'             \
-               -e 's|@@CT_sed@@|'"${sed}"'|g;'               \
-               -e 's|@@CT_sed_r@@|'"${sed_r}"'|g;'         \
+               -e 's|@@CT_grep@@|'"grep"'|g;'             \
+               -e 's|@@CT_make@@|'"make"'|g;'             \
+               -e 's|@@CT_sed@@|'"sed"'|g;'               \
                "${CT_LIB_DIR}/scripts/xldd.in"               \
                >"${CT_PREFIX_DIR}/bin/${CT_TARGET}-ldd"
         CT_DoExecLog ALL chmod 755 "${CT_PREFIX_DIR}/bin/${CT_TARGET}-ldd"
@@ -102,25 +132,8 @@ do_finish() {
 
     # Create the aliases to the target tools
     CT_DoLog EXTRA "Creating toolchain aliases"
-    CT_Pushd "${CT_PREFIX_DIR}/bin"
-    for t in "${CT_TARGET}-"*; do
-        if [ -n "${CT_TARGET_ALIAS}" ]; then
-            _t=$(echo "$t" |sed_r -e 's/^'"${CT_TARGET}"'-/'"${CT_TARGET_ALIAS}"'-/;')
-            CT_DoExecLog ALL ln -sfv "${t}" "${_t}"
-        fi
-        if [ -n "${CT_TARGET_ALIAS_SED_EXPR}" ]; then
-            _t=$(echo "$t" |sed_r -e "${CT_TARGET_ALIAS_SED_EXPR}")
-            if [ "${_t}" = "${t}" ]; then
-                CT_DoLog WARN "The sed expression '${CT_TARGET_ALIAS_SED_EXPR}' has no effect on '${t}'"
-            else
-                CT_DoExecLog ALL ln -sfv "${t}" "${_t}"
-            fi
-        fi
-    done
-    CT_Popd
-
-    CT_DoLog EXTRA "Removing access to the build system tools"
-    CT_DoExecLog DEBUG rm -rf "${CT_PREFIX_DIR}/buildtools"
+    CT_SymlinkTools "${CT_PREFIX_DIR}/bin" "${CT_PREFIX_DIR}/bin" \
+            "${CT_TARGET_ALIAS}" "${CT_TARGET_ALIAS_SED_EXPR}"
 
     # Remove the generated documentation files
     if [ "${CT_REMOVE_DOCS}" = "y" ]; then

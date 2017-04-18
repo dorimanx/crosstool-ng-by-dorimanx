@@ -82,7 +82,6 @@ do_binutils_for_build() {
 
 # Build binutils for host -> target
 do_binutils_for_host() {
-    local -a binutils_tools
     local -a binutils_opts
 
     CT_DoStep INFO "Installing binutils for host"
@@ -118,26 +117,13 @@ do_binutils_for_host() {
     # are not executable on the build machine.
     case "${CT_TOOLCHAIN_TYPE}" in
         cross|native)
-            binutils_tools=( ar as ld ranlib strip )
-            if [ -n "${CT_ARCH_BINFMT_FLAT}" ]; then
-                binutils_tools+=( elf2flt flthdr )
-            fi
-            case "${CT_BINUTILS_LINKERS_LIST}" in
-                ld)         binutils_tools+=( ld.bfd ) ;;
-                gold)       binutils_tools+=( ld.gold ) ;;
-                ld,gold)    binutils_tools+=( ld.bfd ld.gold ) ;;
-                gold,ld)    binutils_tools+=( ld.bfd ld.gold ) ;;
-            esac
-            mkdir -p "${CT_BUILDTOOLS_PREFIX_DIR}/${CT_TARGET}/bin"
             mkdir -p "${CT_BUILDTOOLS_PREFIX_DIR}/bin"
-            for t in "${binutils_tools[@]}"; do
-                CT_DoExecLog ALL ln -sv                                         \
-                                    "${CT_PREFIX_DIR}/${CT_TARGET}/bin/${t}"    \
-                                    "${CT_BUILDTOOLS_PREFIX_DIR}/${CT_TARGET}/bin/${t}"
-                CT_DoExecLog ALL ln -sv                                         \
-                                    "${CT_PREFIX_DIR}/bin/${CT_TARGET}-${t}"    \
-                                    "${CT_BUILDTOOLS_PREFIX_DIR}/bin/${CT_TARGET}-${t}"
-            done
+            CT_SymlinkTools "${CT_BUILDTOOLS_PREFIX_DIR}/bin" \
+                "${CT_PREFIX_DIR}/bin" \
+                "${CT_TARGET}"
+            CT_DoExecLog ALL mkdir -p "${CT_BUILDTOOLS_PREFIX_DIR}/${CT_TARGET}"
+            CT_DoExecLog ALL ln -sv "${CT_PREFIX_DIR}/${CT_TARGET}/bin" \
+                "${CT_BUILDTOOLS_PREFIX_DIR}/${CT_TARGET}/bin"
             ;;
         *)  ;;
     esac
@@ -213,6 +199,8 @@ do_binutils_backend() {
     CT_DoLog DEBUG "Extra config passed: '${extra_config[*]}'"
 
     CT_DoExecLog CFG                                            \
+    CC_FOR_BUILD="${CT_BUILD}-gcc"                              \
+    CFLAGS_FOR_BUILD="${cflags_for_build}"                      \
     CFLAGS="${cflags}"                                          \
     CXXFLAGS="${cflags}"                                        \
     LDFLAGS="${ldflags}"                                        \
@@ -257,7 +245,7 @@ do_binutils_backend() {
         CT_DoLog EXTRA "Installing ld wrapper"
         rm -f "${prefix}/bin/${CT_TARGET}-ld"
         rm -f "${prefix}/${CT_TARGET}/bin/ld"
-        sed_r -e "s/@@DEFAULT_LD@@/${CT_BINUTILS_LINKER_DEFAULT}/" \
+        sed -r -e "s/@@DEFAULT_LD@@/${CT_BINUTILS_LINKER_DEFAULT}/" \
             "${CT_LIB_DIR}/scripts/build/binutils/binutils-ld.in"      \
             >"${prefix}/bin/${CT_TARGET}-ld"
         chmod +x "${prefix}/bin/${CT_TARGET}-ld"
@@ -300,7 +288,6 @@ do_elf2flt_backend() {
     CT_DoExecLog CFG                                            \
     CFLAGS="${cflags}"                                          \
     LDFLAGS="${ldflags}"                                        \
-    LIBS="-ldl"                                                 \
     ${CONFIG_SHELL}                                             \
     "${CT_SRC_DIR}/elf2flt-${CT_ELF2FLT_VERSION}/configure"     \
         --build=${CT_BUILD}                                     \

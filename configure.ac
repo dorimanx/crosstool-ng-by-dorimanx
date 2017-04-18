@@ -162,36 +162,22 @@ AC_ARG_VAR([INSTALL], [Specify the full path to a BSD-compatible install])
 AC_PROG_INSTALL
 
 ACX_WITH_DEPRECATED([grep], [GREP])
-AC_ARG_VAR([INSTALL], [Specify the full path to GNU grep])
+AC_ARG_VAR([GREP], [Specify the full path to GNU grep])
+
+# This is not a typo! Prefer GNU grep on macOS if it is installed.
+ACX_PATH_TOOL_REQ([GREP], [ggrep grep], [grep])
+ACX_PATH_TOOL_REQ([EGREP], [gegrep egrep], [egrep])
 AC_PROG_GREP
 AC_PROG_EGREP
 AS_IF([test "$EGREP" != "$GREP -E"],
     [AC_MSG_ERROR([egrep is not $GREP -E])])
 
-ACX_WITH_DEPRECATED([sed], [SED])
-AC_ARG_VAR([INSTALL], [Specify the full path to GNU sed])
-AC_PROG_SED
-AC_CACHE_CHECK([whether $SED understands -i -e],
-    [acx_cv_sed_i_e],
-    [echo foo > .ct-ng.sed.test
-     ${SED} -i -e 's/foo/bar/' .ct-ng.sed.test >/dev/null 2>&1
-     rc=$?
-     content=`cat .ct-ng.sed.test`
-     rm -f .ct-ng.sed.test
-     AS_IF([test "$rc:$content" = "0:bar"],
-           [acx_cv_sed_i_e=yes],
-           [AC_MSG_ERROR([sed does not accept -i -e])])])
-AC_CACHE_CHECK([which $SED option selects extended regexp],
-    [acx_cv_sed_r],
-    [opt_r=`echo foo | $SED -r -e 's/f(o)o/b\1ar/' 2>/dev/null`
-     opt_E=`echo foo | $SED -E -e 's/f(o)o/b\1ar/' 2>/dev/null`
-     AS_IF([test "$opt_r" = "boar"],
-           [acx_cv_sed_r=-r],
-           [test "$opt_E" = "boar"],
-           [acx_cv_sed_r=-E],
-           [AC_MSG_ERROR([neither -r nor -E enables extended regexp])])])
-SED_R="$SED $acx_cv_sed_r"
-AC_SUBST([SED_R])
+ACX_PROG_VERSION_REQ_STRICT([SED],
+    [GNU sed >= 4.0],
+    [sed],
+    [gsed sed],
+    ['GNU sed[^0-9]* [4-9]\.'])
+AC_ARG_VAR([SED], [Specify the full path to GNU sed])
 
 AC_PROG_LN_S
 
@@ -232,6 +218,7 @@ ACX_CHECK_PROGS_REQ([readlink], [readlink])
 ACX_CHECK_PROGS_REQ([tar], [tar])
 ACX_CHECK_PROGS_REQ([gzip], [gzip])
 ACX_CHECK_PROGS_REQ([bzip2], [bzip2])
+ACX_CHECK_PROGS_REQ([xz], [xz])
 ACX_CHECK_PROGS_REQ([help2man], [help2man])
 
 # Not a fatal failure even if we have neither - the tarballs may
@@ -264,6 +251,15 @@ test "$acx_cv_stat_flavor" = "BSD" && stat_flavor_BSD=y
 ACX_SET_KCONFIG_OPTION([stat_flavor_BSD])
 test "$acx_cv_stat_flavor" = "GNU" && stat_flavor_GNU=y
 ACX_SET_KCONFIG_OPTION([stat_flavor_GNU])
+
+#Find out how to count CPUs
+AC_CACHE_CHECK([whether to use getconf or sysctl to count CPUs],
+    [acx_cv_cpu_count],
+    [getconf _NPROCESSORS_ONLN >/dev/null 2>&1 && \
+         acx_cv_cpu_count="getconf _NPROCESSORS_ONLN"
+     sysctl -n hw.ncpu >/dev/null 2>&1 && \
+         acx_cv_cpu_count="sysctl -n hw.ncpu"])
+AC_SUBST(CPU_COUNT, "$acx_cv_cpu_count")
 
 #--------------------------------------------------------------------
 # Still boring, but remember the path, now...
@@ -306,42 +302,42 @@ ACX_PROG_VERSION([LIBTOOL],
     [GNU libtool >= 2.4],
     [libtool],
     [glibtool libtool],
-    ['^libtool \(GNU libtool\) ([3-9]\.|2.[4-9]|2.[1-3][0-9])'],
+    ['\(GNU libtool\) ([3-9]\.|2.[4-9]|2.[1-3][0-9])'],
     [libtool_2_4_or_newer])
 
 ACX_PROG_VERSION([LIBTOOLIZE],
     [GNU libtoolize >= 2.4],
     [libtoolize],
     [glibtoolize libtoolize],
-    ['^libtoolize \(GNU libtool\) ([3-9]\.|2.[4-9]|2.[1-3][0-9])'],
+    ['\(GNU libtool\) ([3-9]\.|2.[4-9]|2.[1-3][0-9])'],
     [libtoolize_2_4_or_newer])
 
 ACX_PROG_VERSION([AUTOCONF],
     [GNU autoconf >= 2.65],
     [AUTOCONF],
     [autoconf],
-    ['^autoconf \(GNU Autoconf\) ([3-9]\.|2\.[7-9][0-9]|2\.6[5-9])'],
+    ['\(GNU Autoconf\) ([3-9]\.|2\.[7-9][0-9]|2\.6[5-9])'],
     [autoconf_2_63_or_newer])
 
 ACX_PROG_VERSION([AUTORECONF],
     [GNU autoreconf >= 2.63],
     [autoreconf],
     [autoreconf],
-    ['^autoreconf \(GNU Autoconf\) ([3-9]\.|2\.[7-9][0-9]|2\.6[3-9])'],
+    ['\(GNU Autoconf\) ([3-9]\.|2\.[7-9][0-9]|2\.6[3-9])'],
     [autoreconf_2_63_or_newer])
 
 ACX_PROG_VERSION([AUTOMAKE],
     [GNU automake >= 1.15],
     [automake],
     [automake],
-    ['automake \(GNU automake\) ([2-9]\.|1\.[2-9][0-9]|1\.1[5-9])'],
+    ['\(GNU automake\) ([2-9]\.|1\.[2-9][0-9]|1\.1[5-9])'],
     [automake_1_15_or_newer])
 
 ACX_PROG_VERSION([M4],
     [GNU m4 >= 1.4.12],
     [m4],
     [gm4 m4],
-    ['^m4 \(GNU M4\) ([2-9]\.|1\.[5-9]|1\.[1-4][0-9]|1\.4\.[2-9][0-9]|1\.4\.1[2-9])'],
+    ['\(GNU M4\) ([2-9]\.|1\.[5-9]|1\.[1-4][0-9]|1\.4\.[2-9][0-9]|1\.4\.1[2-9])'],
     [gnu_m4_1_4_12_or_newer])
 
 #----------------------------------------
@@ -364,14 +360,6 @@ AC_SUBST([GPERF_LEN_TYPE])
 # Boring again... But still a bit of work to do...
 #--------------------------------------------------------------------
 AC_SUBST([kconfig_options])
-
-#----------------------------------------
-AC_CHECK_PROGS([xz],   [xz])
-ACX_SET_KCONFIG_OPTION([xz])
-AS_IF(
-    [test -z "$xz"],
-    [AC_CHECK_PROGS([lzma], [lzma])])
-ACX_SET_KCONFIG_OPTION([lzma])
 
 #----------------------------------------
 AC_CHECK_PROGS([cvs], [cvs])

@@ -48,7 +48,7 @@ do_debug_gdb_build() {
 
     if [ "${CT_GDB_CROSS}" = "y" ]; then
         local -a cross_extra_config
-        local gcc_version
+        local gcc_version p _p
 
         CT_DoStep INFO "Installing cross-gdb"
         CT_DoLog EXTRA "Configuring cross-gdb"
@@ -75,7 +75,20 @@ do_debug_gdb_build() {
             *)      cross_extra_config+=("--enable-threads");;
         esac
         if [ "${CT_GDB_CROSS_PYTHON}" = "y" ]; then
-            cross_extra_config+=( "--with-python=yes" )
+            if [ -z "${CT_GDB_CROSS_PYTHON_BINARY}" ]; then
+                for p in python python3 python2; do
+                    _p=$( which "${p}" || true )
+                    if [ -n "${_p}" ]; then
+                       cross_extra_config+=( "--with-python=${_p}" )
+                       break
+                    fi
+                done
+                if [ -z "${_p}" ]; then
+                    CT_Abort "Python support requested in cross-gdb, but Python not found. Set CT_GDB_CROSS_PYTHON_BINARY in your config."
+                fi
+            else
+                cross_extra_config+=( "--with-python=${CT_GDB_CROSS_PYTHON_BINARY}" )
+            fi
         else
             cross_extra_config+=( "--with-python=no" )
         fi
@@ -102,6 +115,11 @@ do_debug_gdb_build() {
                 # FIXME: Really, we should be testing for host compiler being clang.
                 CC_for_gdb+=" -Qunused-arguments"
                 CXX_for_gdb+=" -Qunused-arguments"
+                # clang detects the line from gettext's _ macro as format string
+                # not being a string literal and produces a lot of warnings - which
+                # ct-ng's logger faithfully relays to user if this happens in the
+                # error() function. Suppress them.
+                cross_extra_config+=( "--enable-build-warnings=,-Wno-format-nonliteral,-Wno-format-security" )
                 ;;
         esac
 
@@ -122,6 +140,8 @@ do_debug_gdb_build() {
         CT_DoLog DEBUG "Extra config passed: '${cross_extra_config[*]}'"
 
         CT_DoExecLog CFG                                \
+        CC_FOR_BUILD="${CT_BUILD}-gcc"                  \
+        CFLAGS_FOR_BUILD="${cflags_for_build}"          \
         CPP="${CPP_for_gdb}"                            \
         CC="${CC_for_gdb}"                              \
         CXX="${CXX_for_gdb}"                            \
@@ -156,11 +176,11 @@ do_debug_gdb_build() {
             if [ -f "${CT_SRC_DIR}/gcc-${CT_CC_GCC_VERSION}/gcc/BASE-VER" ]; then
                 gcc_version=$( cat "${CT_SRC_DIR}/gcc-${CT_CC_GCC_VERSION}/gcc/BASE-VER" )
             else
-                gcc_version=$(sed_r -e '/version_string/!d; s/^.+= "([^"]+)".*$/\1/;'   \
+                gcc_version=$(sed -r -e '/version_string/!d; s/^.+= "([^"]+)".*$/\1/;'   \
                                    "${CT_SRC_DIR}/gcc-${CT_CC_GCC_VERSION}/gcc/version.c"   \
                              )
             fi
-            sed_r                                                   \
+            sed -r                                               \
                    -e "s:@@PREFIX@@:${CT_PREFIX_DIR}:;"             \
                    -e "s:@@VERSION@@:${gcc_version}:;"              \
                    "${CT_LIB_DIR}/scripts/build/debug/gdbinit.in"   \
@@ -237,6 +257,8 @@ do_debug_gdb_build() {
         CT_DoLog DEBUG "Extra config passed: '${native_extra_config[*]}'"
 
         CT_DoExecLog CFG                                \
+        CC_FOR_BUILD="${CT_BUILD}-gcc"                  \
+        CFLAGS_FOR_BUILD="${cflags_for_build}"          \
         CPP="${CPP_for_gdb}"                            \
         CC="${CC_for_gdb}"                              \
         CXX="${CXX_for_gdb}"                            \
@@ -311,6 +333,8 @@ do_debug_gdb_build() {
         gdbserver_extra_config+=("--disable-gas")
 
         CT_DoExecLog CFG                                \
+        CC_FOR_BUILD="${CT_BUILD}-gcc"                  \
+        CFLAGS_FOR_BUILD="${cflags_for_build}"          \
         CC="${CT_TARGET}-${CT_CC}"                      \
         CPP="${CT_TARGET}-cpp"                          \
         LD="${CT_TARGET}-ld"                            \

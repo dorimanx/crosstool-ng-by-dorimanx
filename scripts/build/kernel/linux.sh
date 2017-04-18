@@ -80,7 +80,7 @@ do_kernel_extract() {
     # to version - patching each particular Linux version would be
     # too cumbersome.
     CT_Pushd "${CT_SRC_DIR}/linux-${CT_KERNEL_VERSION}"
-    sed_r -i 's/(\$\(MAKE\) .* relocs)$/:/' arch/*/Makefile
+    sed -i -r 's/(\$\(MAKE\) .* relocs)$/:/' arch/*/Makefile
     CT_Popd
 }
 
@@ -103,24 +103,28 @@ do_kernel_headers() {
     esac
 
     CT_DoLog EXTRA "Installing kernel headers"
-    CT_DoExecLog ALL                                    \
-    make -C "${kernel_path}"                         \
-         CROSS_COMPILE="${CT_TARGET}-"                  \
-         O="${CT_BUILD_DIR}/build-kernel-headers"       \
-         ARCH=${kernel_arch}                            \
-         INSTALL_HDR_PATH="${CT_SYSROOT_DIR}/usr"       \
-         ${V_OPT}                                       \
+    CT_DoExecLog ALL                                         \
+    make -C "${kernel_path}"                                 \
+         BASH="$(which bash)"                                \
+         HOSTCC="${CT_BUILD}-gcc"                            \
+         CROSS_COMPILE="${CT_TARGET}-"                       \
+         O="${CT_BUILD_DIR}/build-kernel-headers"            \
+         ARCH=${kernel_arch}                                 \
+         INSTALL_HDR_PATH="${CT_SYSROOT_DIR}/usr"            \
+         ${V_OPT}                                            \
          headers_install
 
     if [ "${CT_KERNEL_LINUX_INSTALL_CHECK}" = "y" ]; then
         CT_DoLog EXTRA "Checking installed headers"
-        CT_DoExecLog ALL                                    \
-        make -C "${kernel_path}"                         \
-             CROSS_COMPILE="${CT_TARGET}-"                  \
-             O="${CT_BUILD_DIR}/build-kernel-headers"       \
-             ARCH=${kernel_arch}                            \
-             INSTALL_HDR_PATH="${CT_SYSROOT_DIR}/usr"       \
-             ${V_OPT}                                       \
+        CT_DoExecLog ALL                                         \
+        make -C "${kernel_path}"                                 \
+             BASH="$(which bash)"                                \
+             HOSTCC="${CT_BUILD}-gcc"                            \
+             CROSS_COMPILE="${CT_TARGET}-"                       \
+             O="${CT_BUILD_DIR}/build-kernel-headers"            \
+             ARCH=${kernel_arch}                                 \
+             INSTALL_HDR_PATH="${CT_SYSROOT_DIR}/usr"            \
+             ${V_OPT}                                            \
              headers_check
     fi
 
