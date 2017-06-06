@@ -1,0 +1,143 @@
+# C library menu
+# Generated file, do not edit!!!
+
+choice GEN_CHOICE_LIBC
+    bool
+    prompt "C library"
+
+config LIBC_avr_libc
+    bool
+    prompt "avr-libc"
+    depends on ARCH_avr
+    depends on ! LINUX && ! WINDOWS && BARE_METAL
+    select LIBC_SUPPORT_THREADS_NONE
+    help
+      The AVR Libc package provides a subset of the standard C library for
+      Atmel AVR 8-bit RISC microcontrollers. In addition, the library
+      provides the basic startup code needed by most applications.
+
+config LIBC_bionic
+    bool
+    prompt "bionic"
+    depends on ! WINDOWS && ! BARE_METAL
+    depends on ARCH_arm || ARCH_mips || ARCH_x86
+    depends on EXPERIMENTAL
+    depends on CC_GCC_6_or_later
+    select LIBC_SUPPORT_THREADS_POSIX
+    help
+      Bionic is the Android C library. It is prebuilt, extracted from the Android NDK.
+      This platform has no TLS (Thread Local Storage) support so that option must be
+      disabled in the Compiler options.
+
+config LIBC_glibc
+    bool
+    prompt "glibc"
+    depends on ! WINDOWS && ! BARE_METAL && ARCH_USE_MMU
+    select LIBC_SUPPORT_THREADS_NATIVE
+    select CC_CORE_PASSES_NEEDED
+    select GETTEXT_NEEDED
+    help
+      The de-facto standard for Linux distributions.
+      Feature-rich, but large...  Most useful for desktop-like systems.
+
+config LIBC_mingw
+    bool
+    prompt "mingw"
+    depends on WINDOWS
+    select LIBC_SUPPORT_THREADS_NATIVE
+    select LIBC_SUPPORT_THREADS_POSIX
+    select CC_CORE_PASS_2_NEEDED
+    help
+      The de-facto standard for Mingw distributions.
+
+config LIBC_musl
+    bool
+    prompt "musl"
+    depends on ! WINDOWS && ! BARE_METAL
+    depends on EXPERIMENTAL
+    select LIBC_SUPPORT_THREADS_NATIVE
+    select CC_CORE_PASSES_NEEDED
+    help
+      Musl is a new standard library to power a new generation of Linux-based
+      devices. musl is lightweight, fast, simple, free, and strives to be
+      correct in the sense of standards-conformance and safety.
+
+config LIBC_newlib
+    bool
+    prompt "newlib"
+    depends on BARE_METAL
+    select LIBC_SUPPORT_THREADS_NONE
+    select CC_CORE_PASSES_NEEDED if CANADIAN
+    select CC_CORE_PASS_2_NEEDED if ! CANADIAN
+    help
+      Newlib is a C library intended for use on embedded systems. It is a
+      conglomeration of several library parts, all under free software
+      licenses that make them easily usable on embedded products. Newlib
+      is only available in source form. It can be compiled for a wide
+      array of processors, and will usually work on any architecture with
+      the addition of a few low-level routines.
+
+config LIBC_none
+    bool
+    prompt "none"
+    depends on BARE_METAL
+    help
+      Do not use a C library.
+      
+      This is useful if your project is self-contained, does not rely on
+      an external C library, and provides all the necessary bits.
+      
+      Most probably useful to bootloaders, as they generally don't depend
+      on the C library.
+      
+      If unsure: do *not* choose that, and use another option in the choice.
+
+config LIBC_uClibc
+    bool
+    prompt "uClibc"
+    depends on ! WINDOWS && ! BARE_METAL
+    select LIBC_SUPPORT_THREADS_LT
+    select LIBC_SUPPORT_THREADS_NONE
+    select CC_CORE_PASSES_NEEDED
+    help
+      The de-facto standard for embeded linux systems.
+      
+      Highly configurable, thus as feature-rich as you
+      need, without compromising for size.
+
+endchoice
+
+config LIBC
+    default "avr-libc" if LIBC_avr_libc
+    default "bionic" if LIBC_bionic
+    default "glibc" if LIBC_glibc
+    default "mingw" if LIBC_mingw
+    default "musl" if LIBC_musl
+    default "newlib" if LIBC_newlib
+    default "none" if LIBC_none
+    default "uClibc" if LIBC_uClibc
+
+if LIBC_avr_libc
+source "config/libc/avr-libc.in"
+endif
+if LIBC_bionic
+source "config/libc/bionic.in"
+endif
+if LIBC_glibc
+source "config/libc/glibc.in"
+endif
+if LIBC_mingw
+source "config/libc/mingw.in"
+endif
+if LIBC_musl
+source "config/libc/musl.in"
+endif
+if LIBC_newlib
+source "config/libc/newlib.in"
+endif
+if LIBC_none
+source "config/libc/none.in"
+endif
+if LIBC_uClibc
+source "config/libc/uClibc.in"
+endif

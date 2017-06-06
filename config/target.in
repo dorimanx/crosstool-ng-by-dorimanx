@@ -5,7 +5,7 @@ menu "Target options"
 config ARCH
     string
 
-source "config.gen/arch.in"
+source "config/gen/arch.in"
 
 config ARCH_SUFFIX
     string
@@ -132,6 +132,9 @@ config ARCH_ENDIAN
 config ARCH_SUPPORTS_8
     bool
 
+config ARCH_SUPPORTS_16
+    bool
+
 config ARCH_SUPPORTS_32
     bool
 
@@ -164,6 +167,11 @@ config ARCH_8
     bool
     prompt "8-bit"
     depends on ARCH_SUPPORTS_8
+
+config ARCH_16
+    bool
+    prompt "16-bit"
+    depends on ARCH_SUPPORTS_16
 
 config ARCH_32
     bool
@@ -392,6 +400,6 @@ config ARCH_FLOAT
     default "soft"   if ARCH_FLOAT_SW
     default "softfp" if ARCH_FLOAT_SOFTFP
 
-source "config.gen/arch.in.2"
+source "config/gen/arch.in.2"
 
 endmenu

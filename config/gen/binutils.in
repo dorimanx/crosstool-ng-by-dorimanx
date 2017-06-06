@@ -1,0 +1,19 @@
+# Binutils menu
+# Generated file, do not edit!!!
+
+choice GEN_CHOICE_BINUTILS
+    bool
+    prompt "Binutils"
+
+config BINUTILS_binutils
+    bool
+    prompt "binutils"
+
+endchoice
+
+config BINUTILS
+    default "binutils" if BINUTILS_binutils
+
+if BINUTILS_binutils
+source "config/binutils/binutils.in"
+endif
